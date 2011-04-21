@@ -268,6 +268,7 @@ void *cv_threadfunc(void *ptr)
 
         cv::Mat depth_mat = cv::Mat(hsvmask);
         MarkBlobs(depth_mat);
+        DrawFrames();
 
         IplImage mat_test = (IplImage) depth_mat;
         cvCvtColor(&mat_test, depth_rgb, CV_GRAY2RGB);
