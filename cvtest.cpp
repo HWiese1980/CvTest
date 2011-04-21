@@ -281,6 +281,7 @@ void *cv_threadfunc(void *ptr)
         IplImage mat_test = (IplImage) depth_mat;
         IplImage* rectmask = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
         IplImage* combined_result = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, 3);
+        
         cvCvtColor(&mat_test, depth_rgb, CV_GRAY2RGB);
         cvCvtColor(rectangles, rectmask, CV_RGB2GRAY);
         Merge(depth_rgb, rectangles, combined_result, rectmask);
