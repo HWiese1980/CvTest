@@ -56,7 +56,13 @@ int currentBlobMaxX = -1, currentBlobMaxY = -1, currentBlobMinX = -1, currentBlo
 
 std::vector<FigureFrame> frames;
 
-void Merge(IplImage* a, IplImage* b, IplImage* dst)
+void Merge(CvArr* a, CvArr* b, CvArr* dst, CvArr* mask)
+{
+    cvCopy(a, dst);
+    cvCopy(b, dst, mask);
+}
+
+/* void Merge(IplImage* a, IplImage* b, IplImage* dst)
 {
     cv::Mat mat_a = cv::Mat(a);
     cv::Mat mat_b = cv::Mat(b);
@@ -85,6 +91,8 @@ void Merge(IplImage* a, IplImage* b, IplImage* dst)
         }
     }
 }
+ * 
+ * */
 
 void MarkBlobs(cv::Mat& matrix)
 {
@@ -271,12 +279,17 @@ void *cv_threadfunc(void *ptr)
         DrawFrames();
 
         IplImage mat_test = (IplImage) depth_mat;
+        IplImage* rectmask = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
+        IplImage* combined_result = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, 3);
         cvCvtColor(&mat_test, depth_rgb, CV_GRAY2RGB);
-
-        Merge(depth_rgb, rectangles, depth_rgb);
+        cvCvtColor(rectangles, rectmask, CV_RGB2GRAY);
+        Merge(depth_rgb, rectangles, combined_result, rectmask);
 
         cvNamedWindow("blob-msk", 1);
-        cvShowImage("blob-msk", depth_rgb); // hsvmask->origin = 1;
+        cvShowImage("blob-msk", combined_result); // hsvmask->origin = 1;
+
+        cvReleaseImage(&rectmask);
+        cvReleaseImage(&combined_result);
 
         //unlock mutex
         pthread_mutex_unlock(&mutex_rgb);
