@@ -19,9 +19,10 @@ public:
     
     CvPoint GetCenterPoint();
     int GetDistanceFromKinect();
-    void Draw(CvArr* img, CvScalar Color);
+    void Draw(CvArr* img, CvScalar Color, int Thickness = 1);
+    void DrawAsMask(CvArr* img);
     
-    IplImage* depthImage; 
+    static IplImage* depthImage; 
     
     static SMinMax mmWidth, mmHeight;
     
