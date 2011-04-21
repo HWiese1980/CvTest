@@ -9,12 +9,17 @@
 #include <stdio.h>
 #include "FigureFrame.h"
 
+SMinMax FigureFrame::mmHeight = {50, 150};
+SMinMax FigureFrame::mmWidth = {10, 120};
+
 FigureFrame::FigureFrame()
 {
+    this->depthImage = NULL;
 }
 
 FigureFrame::FigureFrame(int _x, int _y, int _w, int _h, int _i)
 {
+    this->depthImage = NULL;
     this->x = _x;
     this->y = _y;
     this->width = _w;
@@ -35,16 +40,23 @@ FigureFrame::~FigureFrame()
 {
 }
 
-int FigureFrame::GetDistanceFromKinect(CvArr* img)
+int FigureFrame::GetDistanceFromKinect()
 {
-    cv::Mat _mat = cv::Mat((IplImage*)img);
+    if(this->depthImage == NULL) return -1;
+    
+    cv::Mat _mat = cv::Mat((IplImage*)this->depthImage);
     int dist = _mat.ptr(this->y)[this->x];
-    return -1;
+    return dist;
+}
+
+bool FigureFrame::IsInside(int _x, int _y)
+{
+    return (_x > this->x & _x < (this->x + this->width) & _y > this->y & _y < (this->y + this->height));
 }
 
 void FigureFrame::Draw(CvArr* img, CvScalar Color)
 {
-    if(this->height < 20 | this->width < 30 | this->height > 60 | this->width > 100) return;
+    if(this->height < mmHeight.Min | this->width < mmWidth.Min | this->height > mmHeight.Max | this->width > mmWidth.Max) return;
     
     CvPoint center = this->GetCenterPoint();
     cvCircle(img, center, 5, Color);
