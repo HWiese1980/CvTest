@@ -62,37 +62,19 @@ void Merge(CvArr* a, CvArr* b, CvArr* dst, CvArr* mask)
     cvCopy(b, dst, mask);
 }
 
-/* void Merge(IplImage* a, IplImage* b, IplImage* dst)
+bool LiesWithinExistingFrame(int x, int y)
 {
-    cv::Mat mat_a = cv::Mat(a);
-    cv::Mat mat_b = cv::Mat(b);
-    cv::Mat mat_dst = cv::Mat(dst);
-
-    for (int y = 0; y < mat_dst.rows; y++)
+    // return false;
+    
+    
+    std::vector<FigureFrame>::iterator it;
+    for(it = frames.begin(); it != frames.end(); it++)
     {
-        uchar* rowPtrA = mat_a.ptr(y);
-        uchar* rowPtrB = mat_b.ptr(y);
-        uchar* rowPtrDst = mat_dst.ptr(y);
-
-        for (int x = 0; x < mat_dst.cols * 3; x++)
-        {
-            uchar* pixPtrA = &rowPtrA[x];
-            uchar* pixPtrB = &rowPtrB[x];
-            uchar* pixPtrDst = &rowPtrDst[x];
-
-            if (*pixPtrB == 0)
-            {
-                *pixPtrDst = *pixPtrA;
-            }
-            else
-            {
-                *pixPtrDst = *pixPtrB;
-            }
-        }
+        if(it->IsInside(x,y)) return true;
     }
+    return false;
+   
 }
- * 
- * */
 
 void MarkBlobs(cv::Mat& matrix)
 {
@@ -101,28 +83,25 @@ void MarkBlobs(cv::Mat& matrix)
     cvZero(rectangles);
     for (int y = 0; y < matrix.rows; y++)
     {
-        if (y >= currentBlobMinY && y <= currentBlobMaxY) continue;
         for (int x = 0; x < matrix.cols; x++)
         {
-            if (x >= currentBlobMinX && x <= currentBlobMaxX) continue;
-
+            /*
+            if(LiesWithinExistingFrame(x,y)) 
+            {
+                printf("Skipping %i:%i\n", x, y);
+                continue;
+            }
+            */
             FloodFill(matrix, x, y, 0);
 
             int rectX1 = currentBlobMinX, rectY1 = currentBlobMinY;
             int rectX2 = currentBlobMaxX, rectY2 = currentBlobMaxY;
             int rectWidth = rectX2 - rectX1, rectHeight = rectY2 - rectY1;
-
-            if ((rectWidth > 30 & rectHeight > 20) & (rectWidth < 100 & rectHeight < 80))
-            {
-                // cvRectangle(rectangles, cvPoint(rectX1, rectY1), cvPoint(rectX2, rectY2), col);
-                FigureFrame frame(rectX1, rectY1, rectX2-rectX1, rectY2-rectY1, rectNo);
-                frames.push_back(frame);
-            }
-            else
-            {
-                cvRectangle(rectangles, cvPoint(rectX1, rectY1), cvPoint(rectX2, rectY2), cvScalar(0, 0, 0, 255), CV_FILLED);
-            }
-
+            
+            FigureFrame frame(rectX1, rectY1, rectWidth, rectHeight, rectNo);
+            frame.depthImage = depthimg;
+            frames.push_back(frame);
+            
             currentBlobMaxX = currentBlobMaxY = currentBlobMinX = currentBlobMinY = -1;
         }
     }
@@ -135,6 +114,8 @@ void DrawFrames()
     for(it = frames.begin(); it != frames.end(); it++)
     {
         (*it).Draw(rectangles,col);
+        int dist = (*it).GetDistanceFromKinect();
+        if(dist >= 0) printf("Distance of %i: %i\n", (*it).Index(), dist);
     }
 }
 
@@ -194,9 +175,6 @@ void rgb_cb(freenect_device *dev, void *rgb, uint32_t timestamp)
     pthread_mutex_unlock(&mutex_rgb);
 }
 
-int lower_thresh = 20, upper_thresh = 60;
-int lower_d_thresh = 0, upper_d_thresh = 255;
-
 void cv_lower_cb(int value)
 {
     hsv_min.val[0] = (double) value;
@@ -207,15 +185,29 @@ void cv_upper_cb(int value)
     hsv_max.val[0] = (double) value;
 }
 
-void cv_lower_d_cb(int value)
+void cv_minWidth_cb(int value)
 {
-    depth_clamp_min.val[0] = (double) value;
+    FigureFrame::mmWidth.Min = value;
 }
 
-void cv_upper_d_cb(int value)
+void cv_maxWidth_cb(int value)
 {
-    depth_clamp_max.val[0] = (double) value;
+    FigureFrame::mmWidth.Max = value;
 }
+
+void cv_minHeight_cb(int value)
+{
+    FigureFrame::mmHeight.Min = value;
+}
+
+void cv_maxHeight_cb(int value)
+{
+    FigureFrame::mmHeight.Max = value;
+}
+
+int lower_thresh = 20, upper_thresh = 60;
+int minWidth, maxWidth, minHeight, maxHeight;
+// int lower_d_thresh = 0, upper_d_thresh = 255;
 
 /*
  * thread for displaying the opencv content
@@ -229,8 +221,11 @@ void *cv_threadfunc(void *ptr)
     cvCreateTrackbar("Lower Threshold", "GUI", &lower_thresh, 255, cv_lower_cb);
     cvCreateTrackbar("Upper Threshold", "GUI", &upper_thresh, 255, cv_upper_cb);
 
-    cvCreateTrackbar("Lower Depth Threshold", "GUI", &lower_d_thresh, 255, cv_lower_d_cb);
-    cvCreateTrackbar("Upper Depth Threshold", "GUI", &upper_d_thresh, 255, cv_upper_d_cb);
+    cvCreateTrackbar("Min Width", "GUI", &FigureFrame::mmWidth.Min, 255, cv_minWidth_cb);
+    cvCreateTrackbar("Max Width", "GUI", &FigureFrame::mmWidth.Max, 255, cv_maxWidth_cb);
+
+    cvCreateTrackbar("Min Height", "GUI", &FigureFrame::mmHeight.Min, 255, cv_minHeight_cb);
+    cvCreateTrackbar("Max Height", "GUI", &FigureFrame::mmHeight.Max, 255, cv_maxHeight_cb);
 
     depthimg = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
     rgbimg = cvCreateImage(cvSize(FREENECTOPENCV_RGB_WIDTH, FREENECTOPENCV_RGB_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_RGB_DEPTH);
