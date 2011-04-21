@@ -74,13 +74,13 @@ void Merge(IplImage* a, IplImage* b, IplImage* dst)
             uchar* pixPtrB = &rowPtrB[x];
             uchar* pixPtrDst = &rowPtrDst[x];
 
-            if (*pixPtrB != 0)
+            if (*pixPtrB == 0)
             {
-                *pixPtrDst = *pixPtrB;
+                *pixPtrDst = *pixPtrA;
             }
             else
             {
-                *pixPtrDst = *pixPtrA;
+                *pixPtrDst = *pixPtrB;
             }
         }
     }
@@ -273,10 +273,10 @@ void *cv_threadfunc(void *ptr)
         IplImage mat_test = (IplImage) depth_mat;
         cvCvtColor(&mat_test, depth_rgb, CV_GRAY2RGB);
 
-        Merge(depth_rgb, rectangles, rectangles);
+        Merge(depth_rgb, rectangles, depth_rgb);
 
         cvNamedWindow("blob-msk", 1);
-        cvShowImage("blob-msk", rectangles); // hsvmask->origin = 1;
+        cvShowImage("blob-msk", depth_rgb); // hsvmask->origin = 1;
 
         //unlock mutex
         pthread_mutex_unlock(&mutex_rgb);
