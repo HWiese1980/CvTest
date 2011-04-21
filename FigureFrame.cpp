@@ -9,8 +9,9 @@
 #include <stdio.h>
 #include "FigureFrame.h"
 
-SMinMax FigureFrame::mmHeight = {50, 150};
-SMinMax FigureFrame::mmWidth = {10, 120};
+IplImage* FigureFrame::depthImage = NULL;
+SMinMax FigureFrame::mmWidth = {50, 150};
+SMinMax FigureFrame::mmHeight = {10, 120};
 
 FigureFrame::FigureFrame()
 {
@@ -42,9 +43,9 @@ FigureFrame::~FigureFrame()
 
 int FigureFrame::GetDistanceFromKinect()
 {
-    if(this->depthImage == NULL) return -1;
-    
-    cv::Mat _mat = cv::Mat((IplImage*)this->depthImage);
+    if (this->depthImage == NULL) return -1;
+
+    cv::Mat _mat = cv::Mat((IplImage*) FigureFrame::depthImage);
     int dist = _mat.ptr(this->y)[this->x];
     return dist;
 }
@@ -54,14 +55,20 @@ bool FigureFrame::IsInside(int _x, int _y)
     return (_x > this->x & _x < (this->x + this->width) & _y > this->y & _y < (this->y + this->height));
 }
 
-void FigureFrame::Draw(CvArr* img, CvScalar Color)
+void FigureFrame::Draw(CvArr* img, CvScalar Color, int Thickness)
 {
-    if(this->height < mmHeight.Min | this->width < mmWidth.Min | this->height > mmHeight.Max | this->width > mmWidth.Max) return;
-    
+    if (this->height < mmHeight.Min | this->width < mmWidth.Min | this->height > mmHeight.Max | this->width > mmWidth.Max) return;
+
     CvPoint center = this->GetCenterPoint();
-    cvCircle(img, center, 5, Color);
-    cvRectangle(img, cvPoint(this->x, this->y), cvPoint(this->x + this->width, this->y + this->height), Color);
+    cvCircle(img, center, 2, Color, CV_FILLED);
+    cvRectangle(img, cvPoint(this->x, this->y), cvPoint(this->x + this->width, this->y + this->height), Color, Thickness);
 }
+
+void FigureFrame::DrawAsMask(CvArr* img)
+{
+    this->Draw(img, cvScalar(255,255,255,255), CV_FILLED);
+}
+
 
 CvPoint FigureFrame::GetCenterPoint()
 {
