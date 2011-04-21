@@ -15,7 +15,8 @@ public:
     FigureFrame(const FigureFrame& orig);
     virtual ~FigureFrame();
     
-    CvPoint& GetCenterPoint();
+    CvPoint GetCenterPoint();
+    int GetDistanceFromKinect(CvArr* img);
     void Draw(CvArr* img, CvScalar Color);
 private:
     int x, y, width, height, index;
@@ -23,4 +24,3 @@ private:
 };
 
 #endif	/* FIGUREFRAME_H */
-
