@@ -8,6 +8,8 @@
 #ifndef FIGUREFRAME_H
 #define	FIGUREFRAME_H
 
+#include "MinMax.h"
+
 class FigureFrame {
 public:
     FigureFrame();
@@ -16,8 +18,15 @@ public:
     virtual ~FigureFrame();
     
     CvPoint GetCenterPoint();
-    int GetDistanceFromKinect(CvArr* img);
+    int GetDistanceFromKinect();
     void Draw(CvArr* img, CvScalar Color);
+    
+    IplImage* depthImage; 
+    
+    static SMinMax mmWidth, mmHeight;
+    
+    bool IsInside(int x, int y);
+    int Index() { return index; }
 private:
     int x, y, width, height, index;
     CvFont font;
