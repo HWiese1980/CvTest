@@ -41,6 +41,7 @@ IplImage* hsvimg = 0;
 IplImage* hsvmask = 0;
 IplImage* depthmask = 0;
 IplImage* rectangles = 0;
+IplImage* rectmask = 0;
 IplImage* depth_rgb = 0;
 
 IplImage* clamped_hsv = 0; // hsv mask married to clamped depth data
@@ -114,8 +115,15 @@ void DrawFrames()
     for(it = frames.begin(); it != frames.end(); it++)
     {
         (*it).Draw(rectangles,col);
-        int dist = (*it).GetDistanceFromKinect();
-        if(dist >= 0) printf("Distance of %i: %i\n", (*it).Index(), dist);
+    }
+}
+
+void DrawMasks(CvArr* image)
+{
+    std::vector<FigureFrame>::iterator it;
+    for(it = frames.begin(); it != frames.end(); it++)
+    {
+        (*it).DrawAsMask(image);
     }
 }
 
@@ -241,27 +249,23 @@ void *cv_threadfunc(void *ptr)
 
     // use image polling
     printf("Running Thread...\n");
+    cvNamedWindow("blob-msk", 1);
+    cvNamedWindow( "depth-img", 1); 
+    
     while (1)
     {
-        //lock mutex for depth image
-        pthread_mutex_lock(&mutex_depth);
-        // show image to window
-        cvShowImage(FREENECTOPENCV_WINDOW_D, depthimg);
-        //unlock mutex for depth image
-        pthread_mutex_unlock(&mutex_depth);
-
         //lock mutex for rgb image
-        pthread_mutex_lock(&mutex_rgb);
+        //pthread_mutex_lock(&mutex_rgb);
         // show image to window
         cvCvtColor(rgbimg, hsvimg, CV_BGR2HSV);
         // cvNamedWindow( "hsv-img", 1); cvShowImage( "hsv-img", hsvimg);
-        // cvNamedWindow( "depth-img", 1); cvShowImage( "depth-img", depthmask);
+        cvShowImage( "depth-img", depthimg);
 
         cvInRangeS(hsvimg, hsv_min, hsv_max, hsvmask);
         cvInRangeS(depthimg, depth_clamp_min, depth_clamp_max, depthmask);
 
-        cvNamedWindow("hsv-msk", 1);
-        cvShowImage("hsv-msk", hsvmask); // hsvmask->origin = 1;
+//        cvNamedWindow("hsv-msk", 1);
+//        cvShowImage("hsv-msk", hsvmask); // hsvmask->origin = 1;
 
         // cvShowImage(FREENECTOPENCV_WINDOW_N, rgbimg);
 
@@ -275,20 +279,26 @@ void *cv_threadfunc(void *ptr)
 
         IplImage mat_test = (IplImage) depth_mat;
         IplImage* rectmask = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
+        IplImage* fillmask = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
         IplImage* combined_result = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, 3);
+        IplImage* combined_depth_result = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, 3);
         
         cvCvtColor(&mat_test, depth_rgb, CV_GRAY2RGB);
         cvCvtColor(rectangles, rectmask, CV_RGB2GRAY);
         Merge(depth_rgb, rectangles, combined_result, rectmask);
+        
+        DrawMasks(fillmask);
 
-        cvNamedWindow("blob-msk", 1);
+        // cvCopy(depthimg, combined_depth_result, fillmask );
+        
         cvShowImage("blob-msk", combined_result); // hsvmask->origin = 1;
 
-        cvReleaseImage(&rectmask);
         cvReleaseImage(&combined_result);
+        cvReleaseImage(&rectmask);
+        cvReleaseImage(&fillmask);
 
         //unlock mutex
-        pthread_mutex_unlock(&mutex_rgb);
+        //pthread_mutex_unlock(&mutex_rgb);
 
         // wait for quit key
         if (cvWaitKey(15) == 27)
@@ -307,7 +317,6 @@ int main(int argc, char** argv)
 
     int die = 0;
     int res = 0;
-
 
     if (freenect_init(&f_ctx, NULL) < 0)
     {
