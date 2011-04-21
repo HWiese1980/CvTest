@@ -21,11 +21,16 @@ FigureFrame::FigureFrame(int _x, int _y, int _w, int _h, int _i)
     this->height = _h;
     this->index = _i;
 
-    cvInitFont(&this->font, CV_FONT_VECTOR0, 1, 1, 0, 1);
+    // cvInitFont(&this->font, CV_FONT_VECTOR0, 1, 1, 0, 1);
 }
 
 FigureFrame::FigureFrame(const FigureFrame& orig)
 {
+    this->x = orig.x;
+    this->y = orig.y;
+    this->width = orig.width;
+    this->height = orig.height;
+    this->index = orig.index;
 }
 
 FigureFrame::~FigureFrame()
@@ -37,7 +42,7 @@ void FigureFrame::Draw(CvArr* img, CvScalar Color)
     char buff[255];
     sprintf(buff, "%i", this->index);
     cvRectangle(img, cvPoint(this->x, this->y), cvPoint(this->x + this->width, this->y + this->height), Color);
-    cvPutText(img, buff, cvPoint(this->x, this->y - 10), &this->font, Color);
+    // cvPutText(img, buff, cvPoint(this->x, this->y - 10), &this->font, Color);
 }
 
 CvPoint& FigureFrame::GetCenterPoint()
