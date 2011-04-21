@@ -251,7 +251,7 @@ void *cv_threadfunc(void *ptr)
     printf("Running Thread...\n");
     cvNamedWindow("blob-msk", 1);
     cvNamedWindow( "depth-img", 1); 
-    
+    cvNamedWindow( "combined-depth-img", 1); 
     while (1)
     {
         //lock mutex for rgb image
@@ -281,19 +281,21 @@ void *cv_threadfunc(void *ptr)
         IplImage* rectmask = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
         IplImage* fillmask = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
         IplImage* combined_result = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, 3);
-        IplImage* combined_depth_result = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, 3);
+        IplImage* combined_depth_result = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
         
         cvCvtColor(&mat_test, depth_rgb, CV_GRAY2RGB);
         cvCvtColor(rectangles, rectmask, CV_RGB2GRAY);
         Merge(depth_rgb, rectangles, combined_result, rectmask);
         
         DrawMasks(fillmask);
-
-        // cvCopy(depthimg, combined_depth_result, fillmask );
+       
+        cvCopy(depthimg, combined_depth_result, fillmask );
         
         cvShowImage("blob-msk", combined_result); // hsvmask->origin = 1;
+        cvShowImage("combined-depth-img", combined_depth_result); // hsvmask->origin = 1;
 
         cvReleaseImage(&combined_result);
+        cvReleaseImage(&combined_depth_result);
         cvReleaseImage(&rectmask);
         cvReleaseImage(&fillmask);
 
