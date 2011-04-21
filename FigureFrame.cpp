@@ -20,8 +20,6 @@ FigureFrame::FigureFrame(int _x, int _y, int _w, int _h, int _i)
     this->width = _w;
     this->height = _h;
     this->index = _i;
-
-    // cvInitFont(&this->font, CV_FONT_VECTOR0, 1, 1, 0, 1);
 }
 
 FigureFrame::FigureFrame(const FigureFrame& orig)
@@ -37,16 +35,25 @@ FigureFrame::~FigureFrame()
 {
 }
 
-void FigureFrame::Draw(CvArr* img, CvScalar Color)
+int FigureFrame::GetDistanceFromKinect(CvArr* img)
 {
-    char buff[255];
-    sprintf(buff, "%i", this->index);
-    cvRectangle(img, cvPoint(this->x, this->y), cvPoint(this->x + this->width, this->y + this->height), Color);
-    // cvPutText(img, buff, cvPoint(this->x, this->y - 10), &this->font, Color);
+    cv::Mat _mat = cv::Mat((IplImage*)img);
+    int dist = _mat.ptr(this->y)[this->x];
+    return -1;
 }
 
-CvPoint& FigureFrame::GetCenterPoint()
+void FigureFrame::Draw(CvArr* img, CvScalar Color)
 {
-    CvPoint _p = cv::Point(this->x + (this->width / 2), this->y + (this->height / 2));
+    if(this->height < 20 | this->width < 30 | this->height > 60 | this->width > 100) return;
+    
+    CvPoint center = this->GetCenterPoint();
+    cvCircle(img, center, 5, Color);
+    cvRectangle(img, cvPoint(this->x, this->y), cvPoint(this->x + this->width, this->y + this->height), Color);
+}
+
+CvPoint FigureFrame::GetCenterPoint()
+{
+    CvPoint _p = cvPoint(this->x + (this->width / 2), this->y + (this->height / 2));
+    printf("Centepoint of %i: %i %i\n", this->index, _p.x, _p.y);
     return _p;
 }
