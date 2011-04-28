@@ -19,8 +19,6 @@
 #include <map>
 
 #include "FigureFrame.h"
-#include "XY.h"
-#include "Conflict.h"
 
 #include <cvblob.h>
 
