@@ -8,7 +8,10 @@
 #ifndef FIGUREFRAME_H
 #define	FIGUREFRAME_H
 
+#include <opencv/cv.h>
+
 #include "MinMax.h"
+#include "XY.h"
 
 class FigureFrame {
 public:
@@ -17,9 +20,10 @@ public:
     FigureFrame(const FigureFrame& orig);
     virtual ~FigureFrame();
     
+public:
     CvPoint GetCenterPoint();
     int GetDistanceFromKinect();
-    void Draw(CvArr* img, CvScalar Color, int Thickness = 1);
+    void Draw(CvArr* img, int Thickness = 1);
     void DrawAsMask(CvArr* img);
     
     static IplImage* depthImage; 
@@ -28,9 +32,18 @@ public:
     
     bool IsInside(int x, int y);
     int Index() { return index; }
+    
+    CvPoint GetCenterOfGravity();
+
+    bool IsValid();
+
+public:
+    cv::Mat Matrix;
+    
 private:
     int x, y, width, height, index;
     CvFont font;
+    CvMoments moments;
 };
 
 #endif	/* FIGUREFRAME_H */
