@@ -10,7 +10,7 @@ double KinectHelper::view_angle = 0.0;
 
 double KinectHelper::GetKinectHeight()
 {
-    return 62.0; // hardcoded in cm; alles andere hat keinen Sinn
+    return 38.0; // hardcoded in cm; alles andere hat keinen Sinn
     
 /*    
     assert(dev != NULL);
@@ -73,3 +73,25 @@ double KinectHelper::GetDistanceOverGround(double distanceValue)
     
     return ret;
 }
+
+CvPoint KinectHelper::GetAbsoluteCoordinates(double distanceValue, double xOnImage)
+{
+    // double xOnFrame = xOnImage - 320; // Relative horizontale Position der Figur zum Kinect IM BILD
+    
+    CvPoint absKinect = cv::Point(absolute_x, absolute_y);
+
+    CvPoint ToLeftBorder = cv::Point(-sin(view_angle) * 320, cos(view_angle) * 320);
+    CvPoint ToFrame = cv::Point(sin(view_angle) * xOnImage, cos(view_angle) * xOnImage);
+    CvPoint ToPos = cv::Point(cos(view_angle) * distanceValue, sin(view_angle) * distanceValue);
+    
+    CvPoint ret = absKinect + ToLeftBorder + ToFrame + ToPos;
+    
+    return ret;
+}
+
+CvPoint operator+(CvPoint a, CvPoint b)
+{
+    CvPoint ret = cv::Point(a.x + b.x, a.y + b.y);
+    return ret;
+}
+
