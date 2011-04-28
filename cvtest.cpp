@@ -66,6 +66,22 @@ void Merge(CvArr* a, CvArr* b, CvArr* dst, CvArr* mask)
     cvCopy(b, dst, mask);
 }
 
+void CombineTransparent(CvArr* a, CvArr* b, CvArr* dst)
+{
+    IplImage* srcA = (IplImage*)a;
+    IplImage* srcB = (IplImage*)b;
+    for(int y=0; y < srcA->height; y++)
+        for(int x = 0; x < srcA->width; x++)
+        {
+            int rb = cvGet2D(srcB, y, x).val[2];
+            int gb = cvGet2D(srcB, y, x).val[1];
+            int bb = cvGet2D(srcB, y, x).val[0];
+            int sum = rb+gb+bb;
+            cvSet2D(dst, y, x, (sum > 0) ? cvScalar(bb, gb, rb) : cvGet2D(a, y, x));
+        }
+    
+}
+
 bool LiesWithinExistingFrame(int x, int y)
 {
     // return false;
@@ -304,6 +320,9 @@ int minWidth, maxWidth, minHeight, maxHeight;
  */
 void *cv_threadfunc(void *ptr)
 {
+    CvFont font;
+    cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, 0.3, 0.3, 0, 1, CV_AA);
+    
     using namespace cvb;
     // cvNamedWindow( FREENECTOPENCV_WINDOW_D, CV_WINDOW_AUTOSIZE );
     // cvNamedWindow( FREENECTOPENCV_WINDOW_N, CV_WINDOW_AUTOSIZE );
@@ -395,7 +414,8 @@ void *cv_threadfunc(void *ptr)
                 double dist_cm = ((tan(dist[0] / 255 + 0.5) * 33.825 + 5.7)); // Distanz direkt von Kinect zum Objekt
                 
                 double kinect_height = 38; // Kinect Höhe in cm
-                double dist_over_ground = sqrt(pow(dist_cm, 2) - pow(kinect_height, 2));
+                double dist_over_ground = sqrt(pow(dist_cm, 2) - pow(kinect_height, 2)); // Pythagoras
+                if(dist_over_ground > 250) continue; // Objekt zu weit weg.
                 
                 std::cout << "Label: " << (*it).second->label << std::endl;
                 std::cout << "--------------------------------------" << std::endl;
@@ -404,6 +424,12 @@ void *cv_threadfunc(void *ptr)
                 std::cout << "| distance in cm: " << dist_cm << "cm" << std::endl;
                 std::cout << "| distance over ground: " << dist_over_ground << std::endl;
                 std::cout << "--------------------------------------" << std::endl;
+
+                
+                char distance_text[255];
+                sprintf(distance_text, "%0.2f cm", dist_over_ground);
+                cvPutText(combined_labelled_blob, distance_text, cv::Point(cent_x + 5, cent_y + 5), &font, cv::Scalar(255, 255, 255, 0) );
+            
             }
             catch(...)
             {
@@ -417,9 +443,11 @@ void *cv_threadfunc(void *ptr)
             cvRenderContourChainCode(&(*it).second->contour, combined_labelled_blob);
             cvRenderContourPolygon(sPoly, combined_labelled_blob, CV_RGB(0, 255, 255));
             cvRenderContourPolygon(cPoly, combined_labelled_blob, CV_RGB(255, 255, 0));
-            
+
             
         }
+        
+        CombineTransparent(rgbimg, combined_labelled_blob, combined_labelled_blob);
         
         cvShowImage("labeled-blobs", combined_labelled_blob);
         
@@ -427,9 +455,11 @@ void *cv_threadfunc(void *ptr)
         cvCvtColor(rectangles, rectmask, CV_RGB2GRAY);
         // Merge(depth_rgb, rectangles, combined_result, rectmask);
         
+        
+        
         // DrawMasks(fillmask);
-       
-        cvCopy(depthimg, combined_depth_result, fillmask );
+        
+        // cvCopy(depthimg, combined_depth_result, fillmask );
        
         // cvShowImage("blob-msk", combined_result); // hsvmask->origin = 1;
         // cvShowImage("combined-depth-img", combined_depth_result); // hsvmask->origin = 1;
