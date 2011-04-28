@@ -11,7 +11,6 @@
 #include <opencv/cv.h>
 
 #include "MinMax.h"
-#include "XY.h"
 
 class FigureFrame {
 public:
