@@ -3,7 +3,7 @@
 #define CV_NO_BACKWARD_COMPATIBILITY
 
 #include <stdio.h>
-
+#include <iostream>
 #include <libfreenect/libfreenect.h>
 
 #include <libusb.h>
@@ -16,8 +16,13 @@
 #include <stdlib.h>
 
 #include <vector>
+#include <map>
 
 #include "FigureFrame.h"
+#include "XY.h"
+#include "Conflict.h"
+
+#include <cvblob.h>
 
 pthread_mutex_t mutex_depth = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_rgb = PTHREAD_MUTEX_INITIALIZER;
@@ -77,6 +82,75 @@ bool LiesWithinExistingFrame(int x, int y)
    
 }
 
+/*
+std::map<int, std::vector<S_XY> > indexedPixels;
+int PixelIndexed(S_XY pixel)
+{
+    for(std::map<int, std::vector<S_XY> >::iterator it = indexedPixels.begin(); it != indexedPixels.end(); it++)
+    {
+        for(std::vector<S_XY>::iterator vit = (*it).second.begin(); vit != (*it).second.end(); vit++)
+        {
+            if((*vit).x == pixel.x & (*vit).y == pixel.y) return (*it).first;
+        }
+    }
+    return -1;
+}
+
+std::vector<SConflict> conflicts;
+std::map<int, FigureFrame> objects;
+void MarkBlobs(cv::Mat& matrix)
+{
+    objects.clear();
+    int index = 0;
+    cvZero(rectangles);
+    for(int y = 0; y < matrix.rows - 1; y++)
+    {
+        uchar* rowPtr = matrix.ptr(y);
+        for(int x = 0; x < matrix.cols; x++)
+        {
+            uchar* pixPtr = &rowPtr[x];
+            if(*pixPtr >= 255)
+            {
+                int idxDown = PixelIndexed({x, y + 1});
+                int idxLeft = PixelIndexed({x - 1, y});
+                
+                S_XY currentPixel = {x, y};
+                if(idxDown == -1 & idxLeft == -1) // neues Objekt
+                {
+                    // printf("New Object found at %i:%i\n", x,y);
+                    index++;
+                    indexedPixels[index].push_back(currentPixel);
+                }
+                else if(idxLeft == -1 & idxDown >= 0) // aktuelles Objekt
+                {
+                    indexedPixels[index].push_back(currentPixel);
+                }
+                else if(idxDown == -1 & idxLeft >= 0) // anderes Objekt mit Index
+                {
+                    indexedPixels[idxLeft].push_back(currentPixel);
+                }
+                else if(idxDown >= 0 & idxLeft >= 0)
+                {
+                    if(idxDown == idxLeft) // selbes Objekt
+                    {
+                        indexedPixels[index].push_back(currentPixel);
+                    }
+                    else // unterschiedliche Objekte ==> Konflikt
+                    {
+                        SConflict conflict;
+                        conflict.x = x; conflict.y = y;
+                        conflict.index1 = idxLeft;
+                        conflict.index2 = idxDown;
+                        conflicts.push_back(conflict);
+                        printf("Conflict found at [%i:%i]: %i vs. %i\n", x, y, idxLeft, idxDown);
+                    }
+                }
+            }
+        }
+    }
+}
+**/
+
 void MarkBlobs(cv::Mat& matrix)
 {
     frames.clear();
@@ -86,35 +160,43 @@ void MarkBlobs(cv::Mat& matrix)
     {
         for (int x = 0; x < matrix.cols; x++)
         {
-            /*
-            if(LiesWithinExistingFrame(x,y)) 
-            {
-                printf("Skipping %i:%i\n", x, y);
-                continue;
-            }
-            */
             FloodFill(matrix, x, y, 0);
 
             int rectX1 = currentBlobMinX, rectY1 = currentBlobMinY;
             int rectX2 = currentBlobMaxX, rectY2 = currentBlobMaxY;
             int rectWidth = rectX2 - rectX1, rectHeight = rectY2 - rectY1;
             
+            if(rectX1 < 0 | rectX2 < 0 | rectY1 < 0 | rectY2 < 0) continue;
+            
             FigureFrame frame(rectX1, rectY1, rectWidth, rectHeight, rectNo);
+            
+            try
+            {
+                frame.Matrix = matrix(cvRect(rectX1, rectY1, rectWidth, rectHeight));
+            }
+            catch(...)
+            {
+                printf("Fehler beim Kopieren der Matrix\n");
+                printf("---------------------------------------\n");
+                printf("Framedaten: [%i:%i - %i:%i] [%i:%i]\n", rectY1, rectY2, rectX1, rectX2, matrix.rows, matrix.cols);
+                printf("---------------------------------------\n");
+            }
             frame.depthImage = depthimg;
             frames.push_back(frame);
             
             currentBlobMaxX = currentBlobMaxY = currentBlobMinX = currentBlobMinY = -1;
+            rectNo++;
         }
     }
 }
 
+
 void DrawFrames()
 {
-    cv::Scalar col = cvScalar(0, 0, 255, 0);
     std::vector<FigureFrame>::iterator it;
     for(it = frames.begin(); it != frames.end(); it++)
     {
-        (*it).Draw(rectangles,col);
+        (*it).Draw(rectangles);
     }
 }
 
@@ -126,6 +208,8 @@ void DrawMasks(CvArr* image)
         (*it).DrawAsMask(image);
     }
 }
+
+// void RemoveSmallBlobs()
 
 void FloodFill(cv::Mat& matrix, int x, int y, int64_t recursion_level)
 {
@@ -149,10 +233,10 @@ void FloodFill(cv::Mat& matrix, int x, int y, int64_t recursion_level)
 
     *pixPtr = 254;
 
-    FloodFill(matrix, x - 1, y, recursion_level + 1);
-    FloodFill(matrix, x + 1, y, recursion_level + 1);
-    FloodFill(matrix, x, y + 1, recursion_level + 1);
-    FloodFill(matrix, x, y - 1, recursion_level + 1);
+    if(x - 1 >= 0) FloodFill(matrix, x - 1, y, recursion_level + 1);
+    if(x + 1 < 640) FloodFill(matrix, x + 1, y, recursion_level + 1);
+    if(y + 1 < 480) FloodFill(matrix, x, y + 1, recursion_level + 1);
+    if(y - 1 >= 0) FloodFill(matrix, x, y - 1, recursion_level + 1);
     return;
 }
 
@@ -222,6 +306,7 @@ int minWidth, maxWidth, minHeight, maxHeight;
  */
 void *cv_threadfunc(void *ptr)
 {
+    using namespace cvb;
     // cvNamedWindow( FREENECTOPENCV_WINDOW_D, CV_WINDOW_AUTOSIZE );
     // cvNamedWindow( FREENECTOPENCV_WINDOW_N, CV_WINDOW_AUTOSIZE );
     cvNamedWindow("GUI", CV_WINDOW_AUTOSIZE);
@@ -249,9 +334,14 @@ void *cv_threadfunc(void *ptr)
 
     // use image polling
     printf("Running Thread...\n");
-    cvNamedWindow("blob-msk", 1);
+    // cvNamedWindow("blob-msk", 1);
     cvNamedWindow( "depth-img", 1); 
-    cvNamedWindow( "combined-depth-img", 1); 
+    // cvNamedWindow( "combined-depth-img", 1);
+    cvNamedWindow("labeled-blobs", 1);
+    
+    CvTracks tracks;
+    CvBlobs blobs;
+
     while (1)
     {
         //lock mutex for rgb image
@@ -273,28 +363,82 @@ void *cv_threadfunc(void *ptr)
 
         // cvNamedWindow( "married", 1); cvShowImage( "married", clamped_hsv);
 
+        // cvDilate(hsvmask, hsvmask, NULL, 1);
+        
         cv::Mat depth_mat = cv::Mat(hsvmask);
-        MarkBlobs(depth_mat);
-        DrawFrames();
+        // MarkBlobs(depth_mat);
+        // DrawFrames();
 
         IplImage mat_test = (IplImage) depth_mat;
         IplImage* rectmask = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
         IplImage* fillmask = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
         IplImage* combined_result = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, 3);
         IplImage* combined_depth_result = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
+        IplImage* combined_labelled_blob = cvCreateImage(cvGetSize(hsvmask), IPL_DEPTH_8U, 3);
+        
+        IplImage* labeledImage = cvCreateImage(cvGetSize(combined_result), IPL_DEPTH_LABEL, 1);
+        int result = cvLabel(hsvmask, labeledImage, blobs);
+
+        cvFilterByArea(blobs, 500, 1000000);
+
+        cvRenderBlobs(labeledImage, blobs, hsvmask, combined_labelled_blob, CV_BLOB_RENDER_BOUNDING_BOX | CV_BLOB_RENDER_CENTROID);
+        // cvUpdateTracks(blobs, tracks, 200., 5);
+        // cvRenderTracks(tracks, hsvmask, combined_labelled_blob, CV_TRACK_RENDER_TO_STD | CV_TRACK_RENDER_ID | CV_TRACK_RENDER_BOUNDING_BOX);
+        
+        for(CvBlobs::iterator it = blobs.begin(); it != blobs.end(); it++)
+        {
+            try
+            {
+                double cent_x = (*it).second->centroid.x, cent_y = (*it).second->centroid.y;
+                cv::Scalar dist = cvGet2D(depthimg, cent_y, cent_x); // Row/Col Reihenfolge
+                // if(*dist.val > 200) continue;
+
+                // Formel: DIST_CM = TAN(DIST_K / MAX_DIST + 0.5) * 33.825 + 5.7
+                double dist_cm = ((tan(dist[0] / 255 + 0.5) * 33.825 + 5.7)); // Distanz direkt von Kinect zum Objekt
+                
+                double kinect_height = 38; // Kinect Höhe in cm
+                double dist_over_ground = sqrt(pow(dist_cm, 2) - pow(kinect_height, 2));
+                
+                std::cout << "Label: " << (*it).second->label << std::endl;
+                std::cout << "--------------------------------------" << std::endl;
+                std::cout << "| x: " << cent_x << "; y: " << cent_y << std::endl;
+                std::cout << "| distance: " << dist[0] << ":" << dist[1] << ":" << dist[2] << std::endl;
+                std::cout << "| distance in cm: " << dist_cm << "cm" << std::endl;
+                std::cout << "| distance over ground: " << dist_over_ground << std::endl;
+                std::cout << "--------------------------------------" << std::endl;
+            }
+            catch(...)
+            {
+                std::cerr << "Error fetching distance..." << std::endl;
+            }
+
+            CvContourPolygon *poly = cvConvertChainCodesToPolygon(&(*it).second->contour);
+            CvContourPolygon *sPoly = cvSimplifyPolygon(poly, 5);
+            CvContourPolygon *cPoly = cvPolygonContourConvexHull(sPoly);
+            
+            cvRenderContourChainCode(&(*it).second->contour, combined_labelled_blob);
+            cvRenderContourPolygon(sPoly, combined_labelled_blob, CV_RGB(0, 255, 255));
+            cvRenderContourPolygon(cPoly, combined_labelled_blob, CV_RGB(255, 255, 0));
+            
+            
+        }
+        
+        cvShowImage("labeled-blobs", combined_labelled_blob);
         
         cvCvtColor(&mat_test, depth_rgb, CV_GRAY2RGB);
         cvCvtColor(rectangles, rectmask, CV_RGB2GRAY);
-        Merge(depth_rgb, rectangles, combined_result, rectmask);
+        // Merge(depth_rgb, rectangles, combined_result, rectmask);
         
-        DrawMasks(fillmask);
+        // DrawMasks(fillmask);
        
         cvCopy(depthimg, combined_depth_result, fillmask );
-        
-        cvShowImage("blob-msk", combined_result); // hsvmask->origin = 1;
-        cvShowImage("combined-depth-img", combined_depth_result); // hsvmask->origin = 1;
+       
+        // cvShowImage("blob-msk", combined_result); // hsvmask->origin = 1;
+        // cvShowImage("combined-depth-img", combined_depth_result); // hsvmask->origin = 1;
 
         cvReleaseImage(&combined_result);
+        cvReleaseImage(&labeledImage);
+        cvReleaseImage(&combined_labelled_blob);
         cvReleaseImage(&combined_depth_result);
         cvReleaseImage(&rectmask);
         cvReleaseImage(&fillmask);
@@ -309,6 +453,8 @@ void *cv_threadfunc(void *ptr)
     }
     pthread_exit(NULL);
 }
+
+
 
 int main(int argc, char** argv)
 {
