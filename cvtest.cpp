@@ -19,6 +19,7 @@
 #include <map>
 
 #include "FigureFrame.h"
+#include "KinectHelper.h"
 
 #include <cvblob.h>
 
@@ -66,20 +67,45 @@ void Merge(CvArr* a, CvArr* b, CvArr* dst, CvArr* mask)
     cvCopy(b, dst, mask);
 }
 
-void CombineTransparent(CvArr* a, CvArr* b, CvArr* dst)
+void CombineTransparent(CvArr* a, CvArr* b, CvArr* c)
 {
     IplImage* srcA = (IplImage*)a;
     IplImage* srcB = (IplImage*)b;
-    for(int y=0; y < srcA->height; y++)
-        for(int x = 0; x < srcA->width; x++)
-        {
-            int rb = cvGet2D(srcB, y, x).val[2];
-            int gb = cvGet2D(srcB, y, x).val[1];
-            int bb = cvGet2D(srcB, y, x).val[0];
-            int sum = rb+gb+bb;
-            cvSet2D(dst, y, x, (sum > 0) ? cvScalar(bb, gb, rb) : cvGet2D(a, y, x));
-        }
+    IplImage* dst = (IplImage*)c;
     
+    cv::Mat matA = cv::Mat(srcA);
+    cv::Mat matB = cv::Mat(srcB);
+    cv::Mat matDst = cv::Mat(dst);
+
+    for(int y = 0; y < matA.rows; y++)
+    {
+        uchar* rowPtrA = matA.ptr(y);
+        uchar* rowPtrB = matB.ptr(y);
+        uchar* rowPtrDst = matDst.ptr(y);
+        
+        for(int x = 0; x < matA.cols * 3; x++)
+        {
+            uchar* ptrA = &rowPtrA[x];
+            uchar* ptrB = &rowPtrB[x];
+            uchar* ptrDst = &rowPtrDst[x];
+            
+            uchar ra = ptrA[2];
+            uchar ga = ptrA[1];
+            uchar ba = ptrA[0];
+
+            uchar rb = ptrB[2];
+            uchar gb = ptrB[1];
+            uchar bb = ptrB[0];
+            
+            int sum = 0;
+            
+            sum = rb + gb + bb;
+            
+            ptrDst[2] = (sum != 0) ? rb : ra;
+            ptrDst[1] = (sum != 0) ? gb : ga;
+            ptrDst[0] = (sum != 0) ? bb : ba;
+        }
+    }
 }
 
 bool LiesWithinExistingFrame(int x, int y)
@@ -349,6 +375,7 @@ void *cv_threadfunc(void *ptr)
     depthmask = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
     clamped_hsv = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
 
+    KinectHelper::depthData = depthimg;
     // use image polling
     printf("Running Thread...\n");
     // cvNamedWindow("blob-msk", 1);
@@ -411,25 +438,32 @@ void *cv_threadfunc(void *ptr)
                 // if(*dist.val > 200) continue;
 
                 // Formel: DIST_CM = TAN(DIST_K / MAX_DIST + 0.5) * 33.825 + 5.7
-                double dist_cm = ((tan(dist[0] / 255 + 0.5) * 33.825 + 5.7)); // Distanz direkt von Kinect zum Objekt
+                // double dist_cm = ((tan(dist[0] / 255 + 0.5) * 33.825 + 5.7)); // Distanz direkt von Kinect zum Objekt
+                double dist_cm = KinectHelper::GetDirectDistanceInCM(dist[0]);
                 
-                double kinect_height = 38; // Kinect Höhe in cm
-                double dist_over_ground = sqrt(pow(dist_cm, 2) - pow(kinect_height, 2)); // Pythagoras
+                double kinect_height = KinectHelper::GetKinectHeight(); // Kinect Höhe in cm
+                // double dist_over_ground = sqrt(pow(dist_cm, 2) - pow(kinect_height, 2)); // Pythagoras
+                double dist_over_ground = KinectHelper::GetDistanceOverGround(dist[0]);
                 if(dist_over_ground > 250) continue; // Objekt zu weit weg.
                 
+                /*
                 std::cout << "Label: " << (*it).second->label << std::endl;
                 std::cout << "--------------------------------------" << std::endl;
+                std::cout << "| Kinect Height: " << kinect_height << std::endl;
                 std::cout << "| x: " << cent_x << "; y: " << cent_y << std::endl;
                 std::cout << "| distance: " << dist[0] << ":" << dist[1] << ":" << dist[2] << std::endl;
                 std::cout << "| distance in cm: " << dist_cm << "cm" << std::endl;
                 std::cout << "| distance over ground: " << dist_over_ground << std::endl;
                 std::cout << "--------------------------------------" << std::endl;
-
+                 *  **/
                 
                 char distance_text[255];
                 sprintf(distance_text, "%0.2f cm", dist_over_ground);
-                cvPutText(combined_labelled_blob, distance_text, cv::Point(cent_x + 5, cent_y + 5), &font, cv::Scalar(255, 255, 255, 0) );
-            
+                cvPutText(combined_labelled_blob, distance_text, cv::Point(cent_x + 4, cent_y + 5), &font, cv::Scalar(5, 0, 0, 0) );
+                cvPutText(combined_labelled_blob, distance_text, cv::Point(cent_x + 6, cent_y + 5), &font, cv::Scalar(5, 0, 0, 0) );
+                cvPutText(combined_labelled_blob, distance_text, cv::Point(cent_x + 5, cent_y + 4), &font, cv::Scalar(5, 0, 0, 0) );
+                cvPutText(combined_labelled_blob, distance_text, cv::Point(cent_x + 5, cent_y + 6), &font, cv::Scalar(5, 0, 0, 0) );
+                cvPutText(combined_labelled_blob, distance_text, cv::Point(cent_x + 5, cent_y + 5), &font, cv::Scalar(0, 128, 255, 0) );
             }
             catch(...)
             {
@@ -505,6 +539,8 @@ int main(int argc, char** argv)
         printf("Opening Freenect device failed\n");
         return 2;
     }
+    
+    KinectHelper::dev = f_dev;
 
     freenect_set_depth_callback(f_dev, depth_cb);
     freenect_set_video_callback(f_dev, rgb_cb);
