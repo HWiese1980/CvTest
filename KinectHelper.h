@@ -13,12 +13,15 @@
 #include <iostream>
 
 #include <list>
+#include <cmath>
 
 class KinectHelper {
 public:
     static double GetDirectDistanceInCM(double distanceValue);
     static double GetDistanceOverGround(double distanceValue);
     static double GetKinectHeight();
+    
+    static CvPoint GetAbsoluteCoordinates(double distanceValue, double xOnImage);
     
     static std::list<double> avg_values;
     
@@ -28,6 +31,8 @@ public:
     static freenect_device* dev;
     static CvArr* depthData;
 };
+
+CvPoint operator+(CvPoint a, CvPoint b);
 
 #endif	/* KINECTHELPER_H */
 
