@@ -95,3 +95,29 @@ CvPoint operator+(CvPoint a, CvPoint b)
     return ret;
 }
 
+std::ostream& operator<<(std::ostream& s, const cv::Mat& mat)
+{
+    s << "[Channels: " << mat.channels() << "][Size: W:" << mat.size().width << ";H: " << mat.size().height << "][Rows: " << mat.rows << "][Cols: " << mat.cols << "]";
+    return s;
+}
+
+std::ostream& operator<<(std::ostream& s, const CvPoint& point)
+{
+    s << "[" << point.x << ":" << point.y << "]"; 
+    return s;
+}
+
+bool leftOf(const std::pair<int, cvb::CvBlob*>& point, const std::pair<int, cvb::CvBlob*>& of)
+{
+    return point.second->centroid.x < of.second->centroid.x;
+}
+
+bool rightOf(const std::pair<int, cvb::CvBlob*>& point, const std::pair<int, cvb::CvBlob*>& of)
+{
+    return point.second->centroid.x > of.second->centroid.x;
+}
+
+bool smallestIndex(const std::pair<int, cvb::CvBlob*>& a, const std::pair<int, cvb::CvBlob*>& b)
+{
+    return a.first < b.first;
+}
