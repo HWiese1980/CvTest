@@ -2,6 +2,12 @@
 
 #define CV_NO_BACKWARD_COMPATIBILITY
 
+#ifdef DEBUG
+#define DBG_WHEREAMI std::cout << "[DEBUG] You are here: " << __FILE__ << ":" << __LINE__ << std::endl;
+#else
+#define DBG_WHEREAMI
+#endif
+
 #include <stdio.h>
 #include <iostream>
 #include <libfreenect/libfreenect.h>
@@ -498,7 +504,7 @@ void *cv_threadfunc(void *ptr)
         
         CombineTransparent(rgbimg, combined_labelled_blob, combined_labelled_blob);
         
-        cv::Mat mat = cv::Mat(4, 4, CV_8UC1);
+        
         
         double fx = 594.21;
         double fy = 591.04;
@@ -506,7 +512,11 @@ void *cv_threadfunc(void *ptr)
         double b = 3.3309495;
         double cx = 339.5;
         double cy = 242.7;
-        
+
+        double mat_dat[] = {1/fx, 0, 0, -cx/fx, 0, -1/fy, 0, cy/fy, 0, 0, 0, -1, 0, 0, a, b};
+
+        cv::Mat mat = cv::Mat(4, 4, CV_32FC1, mat_dat);
+/*
         mat.ptr(0)[0] = 1/fx;
         mat.ptr(0)[1] = 0;
         mat.ptr(0)[2] = 0;
@@ -523,6 +533,7 @@ void *cv_threadfunc(void *ptr)
         mat.ptr(3)[1] = 0;
         mat.ptr(3)[2] = a;
         mat.ptr(3)[3] = b;
+**/        
         
         //TODO: Rekalkulation des 2D RGB Bildes mit der Tiefeninformation in eine 3D Punktwolke
         //Stichwort: Distortion - Perspektivverzerrung sorgt für Abweichende Änderung der X-Koordinate
@@ -537,12 +548,30 @@ void *cv_threadfunc(void *ptr)
                         Abgebrochen
          * */
         
-        IplImage* undistorted = cvCreateImage(cvGetSize(rgbimg), IPL_DEPTH_32F, CV_32FC3);
-        const cv::Mat rgbmat = cv::Mat(rgbimg);
-        cv::Mat undistorted_mat = cv::Mat(undistorted);
+        // IplImage* undistorted = cvCreateImage(cvGetSize(rgbimg), IPL_DEPTH_32F, CV_32FC3);
+        // cv::Mat graymat = cvCreateMat(rgbimg->height, rgbimg->width /* 4 * 3 */, CV_32FC1);
+        // const cv::Mat rgbmat = cv::Mat(rgbimg);
         
-        cv::reprojectImageTo3D(rgbmat, undistorted_mat, mat);
-        cvShowImage("labeled-blobs", undistorted);
+        
+        // cv::cvtColor(rgbmat, graymat, CV_BGR2GRAY, 1);
+        
+        
+        // cv::Mat undistorted_mat = cvCreateMat(rgbmat.rows, rgbmat.cols, CV_32FC3);
+        
+        // std::cout << "RGBMAT: " << rgbmat << std::endl;
+        // std::cout << "GRYMAT: " << graymat << std::endl;
+        // std::cout << "UNDMAT: " << undistorted_mat << std::endl;
+        
+        // DBG_WHEREAMI
+        
+        // cv::reprojectImageTo3D(depth_mat, undistorted_mat, mat);
+
+        // DBG_WHEREAMI
+        
+        // IplImage* undistorted = (IplImage*)&undistorted_mat;
+        // cvShowImage("labeled-blobs", &(IplImage)undistorted_mat);
+        
+        // DBG_WHEREAMI
         
         cvCvtColor(&mat_test, depth_rgb, CV_GRAY2RGB);
         cvCvtColor(rectangles, rectmask, CV_RGB2GRAY);
@@ -554,8 +583,8 @@ void *cv_threadfunc(void *ptr)
         
         // cvCopy(depthimg, combined_depth_result, fillmask );
        
-        // cvShowImage("blob-msk", combined_result); // hsvmask->origin = 1;
-        // cvShowImage("combined-depth-img", combined_depth_result); // hsvmask->origin = 1;
+        cvShowImage("blob-msk", combined_result); // hsvmask->origin = 1;
+        cvShowImage("combined-depth-img", combined_depth_result); // hsvmask->origin = 1;
 
         cvShowImage("figures", figurePositionsImage);
         cvReleaseImage(&figurePositionsImage);
