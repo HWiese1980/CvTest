@@ -10,6 +10,7 @@
 
 #include <opencv/cv.h>
 #include <libfreenect/libfreenect.h>
+#include <cvblob.h>
 #include <iostream>
 
 #include <list>
@@ -33,6 +34,13 @@ public:
 };
 
 CvPoint operator+(CvPoint a, CvPoint b);
+std::ostream& operator<<(std::ostream& s, const cv::Mat& mat);
+std::ostream& operator<<(std::ostream& s, const CvPoint& point);
+
+bool leftOf(const std::pair<int, cvb::CvBlob*>& point, const std::pair<int, cvb::CvBlob*>& of);
+bool rightOf(const std::pair<int, cvb::CvBlob*>& point, const std::pair<int, cvb::CvBlob*>& of);
+
+bool smallestIndex(const std::pair<int, cvb::CvBlob*>& a, const std::pair<int, cvb::CvBlob*>& b);
 
 #endif	/* KINECTHELPER_H */
 
