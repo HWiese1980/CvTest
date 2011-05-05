@@ -440,6 +440,7 @@ void *cv_threadfunc(void *ptr)
     // std::vector<cv::Point2f> corners;
     std::vector<cv::Point2f> corners;
     bool bCalibrated = false;
+    std::map<CornerPosition, CvPoint> calibration_corners;
     while (1)
     {
         loopCounter++;
@@ -526,15 +527,29 @@ void *cv_threadfunc(void *ptr)
                 sprintf(distance_text, "%i: %0.2f cm", blobCnt, dist_over_ground);
                 
                 points.push_back(cv::Point(cent_x, cent_y));
+                CvPoint pt;
                 
-                CvPoint pt = KinectHelper::GetAbsoluteCoordinates(dist[0], cent_x);
-                sprintf(coord_text, "In Image: x:%0.2f y:%0.2f; Absolute: x:%i y:%i", cent_x, cent_y,  pt.x, pt.y);
+                if(bCalibrated)
+                {
+                    CvPoint blob_pt = cv::Point(cent_x, cent_y);
+                    CvPoint base_pt = KinectHelper::GetAbsoluteX(blob_pt);
+                    cvLine(combined_labelled_blob, KinectHelper::VanishingPoint, base_pt, CV_RGB(255,0,0));
+
+                    pt = KinectHelper::GetAbsoluteCoordinates(dist[0], base_pt.x);
+                    sprintf(coord_text, "Absolute: x:%i y:%i", pt.x, pt.y);
+                    cvPutText(combined_labelled_blob, coord_text, cv::Point(cent_x + 15, cent_y + 30), &font, cv::Scalar(0, 255, 255, 0) );
+                }
+                
+                
 
                 cvPutText(combined_labelled_blob, distance_text, cv::Point(cent_x + 15, cent_y + 15), &font, cv::Scalar(0, 128, 255, 0) );
-                cvPutText(combined_labelled_blob, coord_text, cv::Point(cent_x + 15, cent_y + 30), &font, cv::Scalar(0, 255, 255, 0) );
                 cvLine(combined_labelled_blob, cv::Point(cent_x - 5,cent_y), cv::Point(cent_x + 5, cent_y), cv::Scalar(255, 0, 255, 0) );
                 cvLine(combined_labelled_blob, cv::Point(cent_x, cent_y - 5), cv::Point(cent_x, cent_y + 5), cv::Scalar(255, 0, 255, 0) );
+
                 cvLine(combined_labelled_blob, cv::Point(320, 10), cv::Point(320, 470), cv::Scalar(255, 255, 255, 0));
+                cvLine(combined_labelled_blob, cv::Point(10, 240), cv::Point(630, 240), cv::Scalar(255, 255, 255, 0));
+                cvLine(combined_labelled_blob, cv::Point(20, 120), cv::Point(620, 120), cv::Scalar(255, 255, 255, 0));
+                
                 
                 // figurePositions.push_back(pt);
                 
@@ -555,93 +570,18 @@ void *cv_threadfunc(void *ptr)
             cvRenderContourPolygon(cPoly, combined_labelled_blob, CV_RGB(255, 255, 0));
         }
 
-        static std::map<CornerPosition, CvPoint> corners;
-        static double length_to_vanishing_point = 0.0;
-        static double v_dist = 0.0;
-        static double a_angle = 0.0;
-        static double h_dist1 = 0.0;
         if(points.size() == 4 && !bCalibrated) // Vierpunktkalibrierung
         {
-            for(std::vector<CvPoint>::iterator it = points.begin(); it != points.end(); it++)
-            {
-                CvPoint& pnt = (*it);
-                if(pnt.x > 320) // rechts von der Mitte;
-                {
-                    if(corners.count(TopRight) == 0) corners[TopRight] = pnt;
-                    else if(corners.count(BottomRight) == 0) corners[BottomRight] = pnt;
-                }
-                else if(pnt.x < 320) // links von der Mitte;
-                {
-                    if(corners.count(TopLeft) == 0) corners[TopLeft] = pnt;
-                    else if(corners.count(BottomLeft) == 0) corners[BottomLeft] = pnt;
-                }
-            }
-            
-            std::cout << "Kalibrieren" << std::endl;
-            std::cout << "Links 1: " << corners[TopLeft] << std::endl;
-            std::cout << "Links 2: " << corners[BottomLeft] << std::endl;
-            std::cout << "Rechts 1: " << corners[TopRight] << std::endl;
-            std::cout << "Rechts 2: " << corners[BottomRight] << std::endl;
-            
-            h_dist1 = corners[TopRight].x - corners[TopLeft].x;
-            double h_dist2 = corners[BottomRight].x - corners[BottomLeft].x;
-            v_dist = sqrt( pow(corners[TopRight].x - corners[BottomRight].x, 2) +  pow(corners[TopRight].y - corners[BottomRight].y, 2));
-            
-            double fact = h_dist2 / h_dist1;
-            length_to_vanishing_point = v_dist * fact; // - v_dist;
-            
-            
-            
-            double t_sin = h_dist2 / (2 * (length_to_vanishing_point + v_dist));
-            
-            std::cout << "Y: " << h_dist1 << "; sin: " << t_sin << std::endl;
-            a_angle = asin(t_sin);
-            
-            std::cout << "Distanz zum Fluchtpunkt: " << length_to_vanishing_point << "; Winkel: " << a_angle << std::endl;
-            
+            KinectHelper::CalibrateAnglesAndViewport();
+            KinectHelper::CalibrateVanishingPoint(points);
             bCalibrated = true;
         }
-        else if(!bCalibrated && blobs.size() != 4)
+        else
         {
-            std::cout << "Keine Blobs 4 gefunden. Stattdessen: " << blobs.size() << std::endl;
+            KinectHelper::DrawCalibrationData(combined_labelled_blob);
         }
-
-        if(bCalibrated) 
-        {
-            cvCircle(combined_labelled_blob, corners[TopRight], length_to_vanishing_point, CV_RGB(255, 255, 255) );
-            cvCircle(combined_labelled_blob, corners[TopRight], h_dist1 / 2, CV_RGB(255, 0, 255) );
-            cvCircle(combined_labelled_blob, corners[BottomRight], v_dist, CV_RGB(255, 255, 255) );
-            cvLine(combined_labelled_blob, corners[TopRight], corners[BottomRight], CV_RGB(255, 0, 0));
-        
-            double dist_y = 480 - corners[BottomRight].y;
-            
-            CvPoint prj_bottom_right = cv::Point(corners[BottomRight].x + (tan(a_angle) * dist_y), 480);
-            cvLine(combined_labelled_blob, corners[BottomRight], prj_bottom_right, CV_RGB(0, 255, 0));
-            cvLine(combined_labelled_blob, corners[TopRight], prj_bottom_right, CV_RGB(0, 255, 255));
-            
-            // cv::findHomography()
-        }
-        
-        
-        
+      
         CombineTransparent(rgbimg, combined_labelled_blob, combined_labelled_blob);
-       
-        /*
-        double fx = 594.21;
-        double fy = 591.04;
-        double a = -0.0030711;
-        double b = 3.3309495;
-        double cx = 339.5;
-        double cy = 242.7;
-
-        double cam_mat_data[] = {fx, 0, cx, 0, fy, cy, 0, 0, 1};
-        double mat_dat[] = {1/fx, 0, 0, -cx/fx, 0, -1/fy, 0, cy/fy, 0, 0, 0, -1, 0, 0, a, b};
-
-        cv::Mat cam_mat = cv::Mat(3, 3, CV_32FC1, cam_mat_data);
-        cv::Mat outmat = cvCreateMat(rgbmat.rows, rgbmat.cols, CV_32FC3);
-        cv::Mat mat_empty = cvCreateMat(1, 4, CV_32FC1);
-        */
-        // cv::undistort(rgbmat, outmat, cam_mat, mat_empty, cam_mat);
         
         cvCvtColor(&mat_test, depth_rgb, CV_GRAY2RGB);
         cvCvtColor(rectangles, rectmask, CV_RGB2GRAY);
