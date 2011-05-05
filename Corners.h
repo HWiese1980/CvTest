@@ -10,9 +10,9 @@
 
 typedef enum {
     TopLeft,
-            BottomLeft,
-            TopRight,
-            BottomRight
+    BottomLeft,
+    TopRight,
+    BottomRight
 } CornerPosition;
 
 #endif	/* CORNERS_H */
