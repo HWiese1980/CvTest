@@ -36,6 +36,7 @@ OBJECTDIR=${CND_BUILDDIR}/${CND_CONF}/${CND_PLATFORM}
 OBJECTFILES= \
 	${OBJECTDIR}/FigureFrame.o \
 	${OBJECTDIR}/_ext/2139650202/PhidgetHelper.o \
+	${OBJECTDIR}/_ext/2139650202/MotorHelper.o \
 	${OBJECTDIR}/cvtest.o \
 	${OBJECTDIR}/_ext/2139650202/KinectHelper.o
 
@@ -54,7 +55,7 @@ FFLAGS=
 ASFLAGS=
 
 # Link Libraries and Options
-LDLIBSOPTIONS=-L/usr/local/lib `pkg-config --libs opencv` -lfreenect /usr/local/lib/libcvblob.so -lboost_regex  
+LDLIBSOPTIONS=-L/usr/local/lib `pkg-config --libs opencv` -lfreenect /usr/local/lib/libcvblob.so -lboost_regex -lphidget21 -lusb  
 
 # Build Targets
 .build-conf: ${BUILD_SUBPROJECTS}
@@ -75,6 +76,11 @@ ${OBJECTDIR}/_ext/2139650202/PhidgetHelper.o: /home/ros/NetBeansProjects/CvTest/
 	${MKDIR} -p ${OBJECTDIR}/_ext/2139650202
 	${RM} $@.d
 	$(COMPILE.cc) -g -DDEBUG -I/usr/local/include/opencv -I/usr/include/libusb-1.0 -I/usr/local/include/libfreenect -I/usr/local/include/eigen3 -I/usr/local/include/pcl-1.0 `pkg-config --cflags opencv`    -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/2139650202/PhidgetHelper.o /home/ros/NetBeansProjects/CvTest/PhidgetHelper.cpp
+
+${OBJECTDIR}/_ext/2139650202/MotorHelper.o: /home/ros/NetBeansProjects/CvTest/MotorHelper.cpp 
+	${MKDIR} -p ${OBJECTDIR}/_ext/2139650202
+	${RM} $@.d
+	$(COMPILE.cc) -g -DDEBUG -I/usr/local/include/opencv -I/usr/include/libusb-1.0 -I/usr/local/include/libfreenect -I/usr/local/include/eigen3 -I/usr/local/include/pcl-1.0 `pkg-config --cflags opencv`    -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/2139650202/MotorHelper.o /home/ros/NetBeansProjects/CvTest/MotorHelper.cpp
 
 ${OBJECTDIR}/cvtest.o: cvtest.cpp 
 	${MKDIR} -p ${OBJECTDIR}

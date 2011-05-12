@@ -36,6 +36,7 @@ OBJECTDIR=${CND_BUILDDIR}/${CND_CONF}/${CND_PLATFORM}
 OBJECTFILES= \
 	${OBJECTDIR}/FigureFrame.o \
 	${OBJECTDIR}/_ext/2139650202/PhidgetHelper.o \
+	${OBJECTDIR}/_ext/2139650202/MotorHelper.o \
 	${OBJECTDIR}/cvtest.o \
 	${OBJECTDIR}/_ext/2139650202/KinectHelper.o
 
@@ -73,6 +74,11 @@ ${OBJECTDIR}/_ext/2139650202/PhidgetHelper.o: /home/ros/NetBeansProjects/CvTest/
 	${MKDIR} -p ${OBJECTDIR}/_ext/2139650202
 	${RM} $@.d
 	$(COMPILE.cc) -O2 -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/2139650202/PhidgetHelper.o /home/ros/NetBeansProjects/CvTest/PhidgetHelper.cpp
+
+${OBJECTDIR}/_ext/2139650202/MotorHelper.o: /home/ros/NetBeansProjects/CvTest/MotorHelper.cpp 
+	${MKDIR} -p ${OBJECTDIR}/_ext/2139650202
+	${RM} $@.d
+	$(COMPILE.cc) -O2 -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/2139650202/MotorHelper.o /home/ros/NetBeansProjects/CvTest/MotorHelper.cpp
 
 ${OBJECTDIR}/cvtest.o: cvtest.cpp 
 	${MKDIR} -p ${OBJECTDIR}

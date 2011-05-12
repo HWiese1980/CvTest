@@ -8,6 +8,7 @@
       <itemPath>FigureFrame.h</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/KinectHelper.h</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/MinMax.h</itemPath>
+      <itemPath>/home/ros/NetBeansProjects/CvTest/MotorHelper.h</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/PhidgetHelper.h</itemPath>
     </logicalFolder>
     <logicalFolder name="ResourceFiles"
@@ -19,6 +20,7 @@
                    projectFiles="true">
       <itemPath>FigureFrame.cpp</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/KinectHelper.cpp</itemPath>
+      <itemPath>/home/ros/NetBeansProjects/CvTest/MotorHelper.cpp</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/PhidgetHelper.cpp</itemPath>
       <itemPath>cvtest.cpp</itemPath>
     </logicalFolder>
@@ -73,6 +75,8 @@
             <linkerLibLibItem>freenect</linkerLibLibItem>
             <linkerLibFileItem>/usr/local/lib/libcvblob.so</linkerLibFileItem>
             <linkerLibLibItem>boost_regex</linkerLibLibItem>
+            <linkerLibLibItem>phidget21</linkerLibLibItem>
+            <linkerLibLibItem>usb</linkerLibLibItem>
           </linkerLibItems>
         </linkerTool>
       </compileType>

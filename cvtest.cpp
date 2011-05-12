@@ -765,6 +765,8 @@ void *cv_threadfunc(void *ptr)
 int main(int argc, char** argv)
 {
     srand(time(NULL));
+    
+    PhidgetHelper::Initialize();
 
     freenect_context* f_ctx;
     freenect_device* f_dev;
