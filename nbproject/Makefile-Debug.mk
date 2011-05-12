@@ -55,7 +55,7 @@ FFLAGS=
 ASFLAGS=
 
 # Link Libraries and Options
-LDLIBSOPTIONS=-L/usr/local/lib `pkg-config --libs opencv` -lfreenect /usr/local/lib/libcvblob.so -lboost_regex -lphidget21 -lusb  
+LDLIBSOPTIONS=-L/usr/local/lib `pkg-config --libs opencv` -lfreenect /usr/local/lib/libcvblob.so -lboost_regex -lphidget21 -lusb -lserial  
 
 # Build Targets
 .build-conf: ${BUILD_SUBPROJECTS}

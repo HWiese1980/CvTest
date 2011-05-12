@@ -13,23 +13,37 @@
 #include <string.h>
 #include <errno.h>
 
+
 #include "global.h"
 
-std::ofstream MotorHelper::arduinoStream;
+
 MovementState MotorHelper::State = Stopped;
 
 void MotorHelper::Initialize()
 {
-    arduinoStream.open("/dev/ard_relay", std::ios::out | std::ios::binary);
-    std::cout << "Arduino Motor Relay opened: " << (arduinoStream.good() ? "YES" : "NO") << std::endl;
+    // arduinoStream.open("/dev/ard_relay", std::ios::out | std::ios::binary);
+    
+    arduinoConnection.Open()
+           
+            
+    std::cout << "Arduino Motor Relay opened: " << (arduinoPort.good() ? "YES" : "NO") << std::endl;
+}
+
+void MotorHelper::Reset()
+{
+    assert(arduinoStream.is_open() && arduinoStream.good());
+    arduinoPort << "RESET" << std::flush;
+    assert(arduinoStream.good());
 }
 
 void MotorHelper::RawSend(unsigned char directionA, unsigned char directionB, unsigned char A, unsigned char B)
 {
-    char direction = (((directionA & 0x0F) << 4) | (directionB & 0x0F));
-    assert(arduinoStream.is_open() && arduinoStream.good());
     
-    arduinoStream << direction << A << B << std::flush;
+    unsigned char direction = (((directionA & 0x0F) << 4) | (directionB & 0x0F));
+    std::cout << "Raw Sending [0x" << std::hex << (unsigned int)direction << "(" << sizeof(direction) <<  ")][0x" << (unsigned int)A << "(" << sizeof(A) <<  ")][0x" << (unsigned int)B << "(" << sizeof(B) <<  ")]" << std::endl;
+    
+    assert(arduinoStream.is_open() && arduinoStream.good());
+    arduinoPort << direction << A << B << std::flush;
     assert(arduinoStream.good());
 }
 
