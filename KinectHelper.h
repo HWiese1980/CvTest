@@ -22,6 +22,8 @@ class KinectHelper {
 public:
     static const double fov = DEG2RAD(62.7);
     static double view_plane_distance_cm, v_px_per_cm, h_px_per_cm; 
+    static double frame_offset;
+    static double distance_coefficient;
     
     static double GetDirectDistance(CvPoint pt);
     static double GetDirectDistanceInCM(double distanceValue);
@@ -29,12 +31,16 @@ public:
     static double GetKinectHeight();
     static double GetTilt();
     
-    static void CalibrateVanishingPoint(std::vector<CvPoint> four_points);
-    static void CalibrateAnglesAndViewport();
+    static void CalibrateVanishingPoint(); static bool bVPCalibrated;
+    static void CalibrateAnglesAndViewport(); static bool bAandVCalibrated;
     static void DrawCalibrationData(CvArr* img);
+
     static CvPoint GetAbsoluteX(CvPoint point);
-    
     static CvPoint GetAbsoluteCoordinates(double distanceValue, double xOnImage);
+    
+    static CvPoint GetLeftFrameEdgeVector();
+    static CvPoint GetOnImageVector(double XOnImage);
+    static CvPoint GetToPosVector(double Distance);
     
     static std::list<double> avg_values;
     
@@ -47,11 +53,16 @@ public:
     static CvArr* depthData;
     
     static CvPoint VanishingPoint;
-private:
-    static bool bCalibrated;
+    static vector<CvPoint> pointsUsedForCalibration;
 };
 
 CvPoint operator+(CvPoint a, CvPoint b);
+CvPoint operator-(CvPoint a, CvPoint b);
+CvPoint operator*(CvPoint a, double scalar);
+
+bool operator>(CvScalar a, double max);
+
+
 std::ostream& operator<<(std::ostream& s, const cv::Mat& mat);
 std::ostream& operator<<(std::ostream& s, const CvPoint& point);
 std::istream& operator>>(std::istream& s, CvPoint& point);

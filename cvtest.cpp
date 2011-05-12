@@ -79,7 +79,43 @@ void Merge(CvArr* a, CvArr* b, CvArr* dst, CvArr* mask)
     cvCopy(b, dst, mask);
 }
 
-void CombineTransparent(CvArr* a, CvArr* b, CvArr* c)
+void StackTransparent(std::vector< std::pair<CvArr*, double> > images, CvArr* c)
+{
+    
+    IplImage* dst = (IplImage*)c;
+    
+    cv::Mat matDst = cv::Mat(dst);
+    
+    for(std::vector< std::pair<CvArr*, double> >::iterator it = images.begin(); it != images.end(); it++)
+    {
+        IplImage* img = (IplImage*)it->first;
+        double tp = it->second;
+        cv::Mat mat = cv::Mat(img);
+        
+        for(int y = 0; y < matDst.rows; y++)
+        {
+            uchar* srcRow = mat.ptr(y);
+            uchar* dstRow = matDst.ptr(y);
+            for(int x = 0; x < matDst.cols * 3; x++)
+            {
+                uchar r = (&srcRow[x])[2];
+                uchar g = (&srcRow[x])[1];
+                uchar b = (&srcRow[x])[0];
+                if(r + b + g <= 0) continue;
+
+                uchar* newR = &(&dstRow[x])[2];
+                uchar* newG = &(&dstRow[x])[1];
+                uchar* newB = &(&dstRow[x])[0];
+                
+                *newR = r * tp + (*newR * (1.0 - tp));
+                *newG = g * tp + (*newG * (1.0 - tp));
+                *newB = b * tp + (*newB * (1.0 - tp));
+            }
+        }
+    }
+}
+
+void CombineTransparent(CvArr* a, CvArr* b, CvArr* c, double Transparency = 1.0)
 {
     IplImage* srcA = (IplImage*)a;
     IplImage* srcB = (IplImage*)b;
@@ -113,9 +149,11 @@ void CombineTransparent(CvArr* a, CvArr* b, CvArr* c)
             
             sum = rb + gb + bb;
             
-            ptrDst[2] = (sum != 0) ? rb : ra;
-            ptrDst[1] = (sum != 0) ? gb : ga;
-            ptrDst[0] = (sum != 0) ? bb : ba;
+            
+            
+            ptrDst[2] = (sum != 0) ? rb  * Transparency + ra * (1.0 - Transparency): ra;
+            ptrDst[1] = (sum != 0) ? gb  * Transparency + ga * (1.0 - Transparency): ga;
+            ptrDst[0] = (sum != 0) ? bb  * Transparency + ba * (1.0 - Transparency): ba;
         }
     }
 }
@@ -369,9 +407,27 @@ void cv_maxHeight_cb(int value)
     FigureFrame::mmHeight.Max = value;
 }
 
+void cv_KinAngle_cb(int value)
+{
+    KinectHelper::view_angle = DEG2RAD(value);
+}
+
+void cv_KinX_cb(int value)
+{
+    KinectHelper::absolute_x = value;
+}
+
+void cv_KinY_cb(int value)
+{
+    KinectHelper::absolute_y = value;
+}
+
 int lower_thresh = hsv_min.val[0], upper_thresh = hsv_max.val[0];
 int lower_sat_thresh = hsv_min.val[1], upper_sat_thresh = hsv_max.val[1];
 int lower_val_thresh = hsv_min.val[2], upper_val_thresh = hsv_max.val[2];
+
+int _kin_angle = 0, _kin_x = 0, _kin_y = 0;
+
 int minWidth, maxWidth, minHeight, maxHeight;
 // int lower_d_thresh = 0, upper_d_thresh = 255;
 
@@ -380,6 +436,68 @@ void ConvertTo3D(CvArr* src, CvArr* dst, const cv::Mat& Q, bool HandleMissingVal
     cv::Mat matA = cv::Mat((IplImage*)src);
     cv::Mat matB = cv::Mat((IplImage*)dst);
     cv::reprojectImageTo3D(matA, matB, Q, HandleMissingValues);
+}
+
+// std::map<int, CvPoint> calibPoints;
+void onCalibrationWindowMouseClick(int evt, int x, int y, int flags, void* param)
+{
+    static int cpt_index = 0;
+    if(evt==CV_EVENT_LBUTTONUP)
+    {
+        if(KinectHelper::pointsUsedForCalibration.size() < 4)
+        {
+            CvPoint pnt = cv::Point(x, y);
+            KinectHelper::pointsUsedForCalibration.push_back(pnt);
+            std::cout << "Got Mouse click at " << pnt << std::endl;            
+        }
+    }
+    else if(evt==CV_EVENT_RBUTTONUP)
+    {
+        std::cout << "Removing all calibration points" << std::endl;
+        KinectHelper::bVPCalibrated = false;
+        KinectHelper::bAandVCalibrated = false;
+        KinectHelper::pointsUsedForCalibration.clear();
+    }
+}
+
+void ClearBlobAt(IplImage* img, CvPoint Pt)
+{
+    CvScalar scal = cvGet2D(img, Pt.y, Pt.x);
+    if(scal.val[0] > 0) cvFloodFill(img, Pt, CV_RGB(1,0,0));
+}
+
+bool bSkipClearBorder = false;
+void ClearBorder(IplImage* img)
+{
+    if(bSkipClearBorder) return;
+    // upper and lower border
+    for(int idx = 0; idx < img->width; idx++)
+    {
+        CvPoint A_Pt = cv::Point(idx, 0);
+        CvPoint B_Pt = cv::Point(idx, img->height - 1);
+        ClearBlobAt(img, A_Pt);
+        ClearBlobAt(img, B_Pt);
+    }
+    
+    // left and right border
+    for(int idx = 0; idx < img->height; idx++)
+    {
+        CvPoint A_Pt = cv::Point(0, idx);
+        CvPoint B_Pt = cv::Point(img->width - 1, idx);
+        ClearBlobAt(img, A_Pt);
+        ClearBlobAt(img, B_Pt);
+    }
+}
+
+void cvCross(CvArr* img, CvPoint pt, CvScalar color, int size)
+{
+    CvPoint left = pt + cv::Point(-size, 0);
+    CvPoint right = pt + cv::Point(size, 0);
+    CvPoint up = pt + cv::Point(0, -size);
+    CvPoint down = pt + cv::Point(0, size);
+    
+    cvLine(img, left, right, color);
+    cvLine(img, up, down, color);
 }
 
 
@@ -409,6 +527,11 @@ void *cv_threadfunc(void *ptr)
     cvCreateTrackbar("Min Height", "GUI", &FigureFrame::mmHeight.Min, 255, cv_minHeight_cb);
     cvCreateTrackbar("Max Height", "GUI", &FigureFrame::mmHeight.Max, 255, cv_maxHeight_cb);
 
+    cvCreateTrackbar("Kinect Angle", "GUI", &_kin_angle, 360, cv_KinAngle_cb);
+    cvCreateTrackbar("Kinect X", "GUI", &_kin_x, 1000, cv_KinX_cb);
+    cvCreateTrackbar("Kinect Y", "GUI", &_kin_y, 1000, cv_KinY_cb);
+
+    
     depthimg = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
     rgbimg = cvCreateImage(cvSize(FREENECTOPENCV_RGB_WIDTH, FREENECTOPENCV_RGB_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_RGB_DEPTH);
     bgrimg = cvCreateImage(cvSize(FREENECTOPENCV_RGB_WIDTH, FREENECTOPENCV_RGB_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_RGB_DEPTH);
@@ -427,19 +550,21 @@ void *cv_threadfunc(void *ptr)
     // use image polling
     printf("Running Thread...\n");
     // cvNamedWindow("blob-msk", 1);
-    cvNamedWindow( "depth-img", 1); 
-    // cvNamedWindow( "combined-depth-img", 1);
-    cvNamedWindow("labeled-blobs", 1);
+    cvNamedWindow("hsv-msk", 1);
+    // cvNamedWindow( "depth-img", 1); 
+    cvNamedWindow( "combined-depth-img", 1);
+    cvSetMouseCallback("combined-depth-img", onCalibrationWindowMouseClick);
+    // cvNamedWindow("labeled-blobs", 1);
     cvNamedWindow("figures", 1);
-    cvNamedWindow("undistorted", 1);
+    // cvNamedWindow("undistorted", 1);
     
     CvTracks tracks;
     CvBlobs blobs;
 
     int loopCounter = 0; 
     // std::vector<cv::Point2f> corners;
-    std::vector<cv::Point2f> corners;
-    bool bCalibrated = false;
+    // std::vector<cv::Point2f> corners;
+
     std::map<CornerPosition, CvPoint> calibration_corners;
     while (1)
     {
@@ -449,14 +574,16 @@ void *cv_threadfunc(void *ptr)
         // show image to window
         cvCvtColor(rgbimg, hsvimg, CV_BGR2HSV);
         // cvNamedWindow( "hsv-img", 1); cvShowImage( "hsv-img", hsvimg);
-        cvShowImage( "depth-img", depthimg);
+        // cvShowImage( "depth-img", depthimg);
 
         cvInRangeS(hsvimg, hsv_min, hsv_max, hsvmask);
         cvInRangeS(depthimg, depth_clamp_min, depth_clamp_max, depthmask);
         cvInRangeS(hsvimg, hsv_min, hsv_max, checker_mask);
 
-//        cvNamedWindow("hsv-msk", 1);
-//        cvShowImage("hsv-msk", hsvmask); // hsvmask->origin = 1;
+        cvErode(hsvmask, hsvmask, NULL, 4);
+        cvDilate(hsvmask, hsvmask, NULL, 2);
+        ClearBorder(hsvmask);
+        cvShowImage("hsv-msk", hsvmask); // hsvmask->origin = 1;
 
         // cvShowImage(FREENECTOPENCV_WINDOW_N, rgbimg);
 
@@ -475,13 +602,22 @@ void *cv_threadfunc(void *ptr)
         IplImage* fillmask = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
         IplImage* combined_result = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, 3);
         IplImage* combined_depth_result = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
+        
+        
+        /// Images for output of location data (stacked)
+        IplImage* combined_labelled_blob_calibration = cvCreateImage(cvGetSize(hsvmask), IPL_DEPTH_8U, 3);
+        IplImage* combined_labelled_blob_detection = cvCreateImage(cvGetSize(hsvmask), IPL_DEPTH_8U, 3);
+        IplImage* combined_labelled_blob_data = cvCreateImage(cvGetSize(hsvmask), IPL_DEPTH_8U, 3);
+        IplImage* combined_labelled_blob_data_bg = cvCreateImage(cvGetSize(hsvmask), IPL_DEPTH_8U, 3);
         IplImage* combined_labelled_blob = cvCreateImage(cvGetSize(hsvmask), IPL_DEPTH_8U, 3);
         
         IplImage* labeledImage = cvCreateImage(cvGetSize(combined_result), IPL_DEPTH_LABEL, 1);
+        // IplImage* rgb_equalized = cvCreateImage(cvGetSize(rgbimg), IPL_DEPTH_8U, FREENECTOPENCV_RGB_DEPTH);
         
         IplImage* figurePositionsImage = cvCreateImage(cvSize(FREENECTOPENCV_RGB_WIDTH, FREENECTOPENCV_RGB_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_RGB_DEPTH);
-        
         int result = cvLabel(hsvmask, labeledImage, blobs);
+        
+        // cvEqualizeHist(rgbimg, rgb_equalized);
 
         cvFilterByArea(blobs, 500, 1000000);
 
@@ -491,15 +627,14 @@ void *cv_threadfunc(void *ptr)
         std::vector<CvPoint> figurePositions;
         
 
-        int smallest = std::min_element(blobs.begin(), blobs.end(), smallestIndex)->first;
         int blobCnt = 0;
-        std::vector<CvPoint> points;
         for(CvBlobs::iterator it = blobs.begin(); it != blobs.end(); it++)
         {
+            const CvBlob& blb = *(*it).second;
             blobCnt++;
             try
             {
-                double cent_x = (*it).second->centroid.x, cent_y = (*it).second->centroid.y;
+                double cent_x = blb.centroid.x, cent_y = blb.centroid.y;
                 cv::Scalar dist = cvGet2D(depthimg, cent_y, cent_x); // Row/Col Reihenfolge
                 // if(*dist.val > 200) continue;
 
@@ -523,38 +658,53 @@ void *cv_threadfunc(void *ptr)
                 std::cout << "--------------------------------------" << std::endl;
                  *  **/
                 
-                char distance_text[255], coord_text[255];
-                sprintf(distance_text, "%i: %0.2f cm", blobCnt, dist_over_ground);
-                
-                points.push_back(cv::Point(cent_x, cent_y));
+                cvRectangle(combined_labelled_blob_data_bg, cv::Point(cent_x + 5, cent_y + 5), cv::Point(cent_x + 130, cent_y + 60), CV_RGB(5,5, 5), 2);
+                cvRectangle(combined_labelled_blob_data_bg, cv::Point(cent_x + 5, cent_y + 5), cv::Point(cent_x + 130, cent_y + 60), CV_RGB(60,60,60), CV_FILLED);
+
                 CvPoint pt;
                 
-                if(bCalibrated)
+                CvPoint blob_pt = cv::Point(cent_x, cent_y);
+                if(KinectHelper::pointsUsedForCalibration.size() >= 4)
                 {
-                    CvPoint blob_pt = cv::Point(cent_x, cent_y);
                     CvPoint base_pt = KinectHelper::GetAbsoluteX(blob_pt);
-                    cvLine(combined_labelled_blob, KinectHelper::VanishingPoint, base_pt, CV_RGB(255,0,0));
+                    cvLine(combined_labelled_blob_detection, KinectHelper::VanishingPoint, base_pt, CV_RGB(0,255,0), 2);
 
                     pt = KinectHelper::GetAbsoluteCoordinates(dist[0], base_pt.x);
+                    CvPoint absXPt = KinectHelper::GetAbsoluteX(blob_pt);
+                    
+                    char coord_text[255];
                     sprintf(coord_text, "Absolute: x:%i y:%i", pt.x, pt.y);
-                    cvPutText(combined_labelled_blob, coord_text, cv::Point(cent_x + 15, cent_y + 30), &font, cv::Scalar(0, 255, 255, 0) );
+                    cvPutText(combined_labelled_blob_data, coord_text, cv::Point(cent_x + 10, cent_y + 30), &font, cv::Scalar(0, 255, 255, 0) );
+
+                    sprintf(coord_text, "Absol. X: x:%i:y:%i", absXPt.x, absXPt.y);
+                    cvPutText(combined_labelled_blob_data, coord_text, cv::Point(cent_x + 10, cent_y + 45), &font, cv::Scalar(0, 255, 255, 0) );
+
+                    CvPoint kin_pt = cv::Point(320, 240);
+                    CvPoint kinEdge_pt = kin_pt + (KinectHelper::GetLeftFrameEdgeVector() * 0.1);
+                    CvPoint kinOnFr_pt = kinEdge_pt + (KinectHelper::GetOnImageVector(base_pt.x) * 0.1);
+                    CvPoint kinPos__pt = kinOnFr_pt + (KinectHelper::GetToPosVector(dist[0] * KinectHelper::distance_coefficient) * 0.1);
+                    
+                    cvCircle(figurePositionsImage, kin_pt, 4, CV_RGB(255, 128, 0), CV_FILLED);
+                    cvCircle(figurePositionsImage, kin_pt, 4, CV_RGB(255, 192, 0), 2);
+                    cvLine(figurePositionsImage, kin_pt, kinEdge_pt, CV_RGB(255, 128, 0));
+                    cvCircle(figurePositionsImage, kinOnFr_pt, 3, CV_RGB(128, 255, 0), CV_FILLED);
+                    cvCircle(figurePositionsImage, kinPos__pt, 3, CV_RGB(255, 255, 0), CV_FILLED);
                 }
                 
                 
 
-                cvPutText(combined_labelled_blob, distance_text, cv::Point(cent_x + 15, cent_y + 15), &font, cv::Scalar(0, 128, 255, 0) );
-                cvLine(combined_labelled_blob, cv::Point(cent_x - 5,cent_y), cv::Point(cent_x + 5, cent_y), cv::Scalar(255, 0, 255, 0) );
-                cvLine(combined_labelled_blob, cv::Point(cent_x, cent_y - 5), cv::Point(cent_x, cent_y + 5), cv::Scalar(255, 0, 255, 0) );
+                char distance_text[255];
+                sprintf(distance_text, "%i: %0.2f cm", blobCnt, dist_over_ground);
+                cvPutText(combined_labelled_blob_data, distance_text, cv::Point(cent_x + 10, cent_y + 15), &font, cv::Scalar(0, 128, 255, 0) );
+                
+                cvCross(combined_labelled_blob_detection, blob_pt, CV_RGB(255, 0, 0), 5);
+                cvRectangle(combined_labelled_blob_detection, cv::Point(blb.minx, blb.miny), cv::Point(blb.maxx, blb.maxy), CV_RGB(0, 255, 0), 2);
 
-                cvLine(combined_labelled_blob, cv::Point(320, 10), cv::Point(320, 470), cv::Scalar(255, 255, 255, 0));
-                cvLine(combined_labelled_blob, cv::Point(10, 240), cv::Point(630, 240), cv::Scalar(255, 255, 255, 0));
-                cvLine(combined_labelled_blob, cv::Point(20, 120), cv::Point(620, 120), cv::Scalar(255, 255, 255, 0));
-                
-                
                 // figurePositions.push_back(pt);
                 
-                cv::Mat figImgMat = cv::Mat(figurePositionsImage);
-                cv::circle(figImgMat, pt, 5, cv::Scalar(0,255,255, 0), CV_FILLED);
+                // cv::Mat figImgMat = cv::Mat(figurePositionsImage);
+                cvCircle(figurePositionsImage, pt, 5, cv::Scalar(0,255,255, 0), CV_FILLED);
+
             }
             catch(...)
             {
@@ -567,32 +717,47 @@ void *cv_threadfunc(void *ptr)
             
             // cvRenderContourChainCode(&(*it).second->contour, combined_labelled_blob);
             // cvRenderContourPolygon(sPoly, combined_labelled_blob, CV_RGB(0, 255, 255));
-            cvRenderContourPolygon(cPoly, combined_labelled_blob, CV_RGB(255, 255, 0));
+            // cvRenderContourPolygon(cPoly, combined_labelled_blob, CV_RGB(255, 255, 0));
+            
         }
+        
+        cvLine(combined_labelled_blob_detection, cv::Point(320, 10), cv::Point(320, 470), cv::Scalar(255, 255, 255, 0));
+        cvLine(combined_labelled_blob_detection, cv::Point(10, 240), cv::Point(630, 240), cv::Scalar(255, 255, 255, 0));
+        cvLine(combined_labelled_blob_detection, cv::Point(20, 120), cv::Point(620, 120), cv::Scalar(255, 255, 255, 0));
 
-        if(points.size() == 4 && !bCalibrated) // Vierpunktkalibrierung
-        {
-            KinectHelper::CalibrateAnglesAndViewport();
-            KinectHelper::CalibrateVanishingPoint(points);
-            bCalibrated = true;
-        }
-        else
-        {
-            KinectHelper::DrawCalibrationData(combined_labelled_blob);
-        }
+        KinectHelper::CalibrateAnglesAndViewport();
+        KinectHelper::CalibrateVanishingPoint();
+        KinectHelper::DrawCalibrationData(combined_labelled_blob_calibration);
       
-        CombineTransparent(rgbimg, combined_labelled_blob, combined_labelled_blob);
+        std::vector< std::pair< CvArr*, double > > imageStack;
+        
+        imageStack.push_back({ rgbimg, 1.0 });
+        imageStack.push_back({ combined_labelled_blob_data_bg, 0.2 });
+        imageStack.push_back({ combined_labelled_blob_data, 1.0 });
+        imageStack.push_back({ combined_labelled_blob_detection, 1.0 });
+        imageStack.push_back({ combined_labelled_blob_calibration, 1.0 });
+        
+        StackTransparent(imageStack, combined_labelled_blob);
+        
+        
+        // CombineTransparent(rgbimg, combined_labelled_blob, combined_labelled_blob);
+        // CombineTransparent(combined_labelled_blob, combined_labelled_blob_data_bg, combined_labelled_blob, 0.2);
+        // CombineTransparent(combined_labelled_blob, combined_labelled_blob_data, combined_labelled_blob);
         
         cvCvtColor(&mat_test, depth_rgb, CV_GRAY2RGB);
         cvCvtColor(rectangles, rectmask, CV_RGB2GRAY);
        
         cvShowImage("combined-depth-img", combined_labelled_blob); // hsvmask->origin = 1;
-        cvShowImage("undistorted", checker_mask);
+        // cvShowImage("undistorted", checker_mask);
         cvShowImage("figures", figurePositionsImage);
         cvReleaseImage(&figurePositionsImage);
         cvReleaseImage(&combined_result);
         cvReleaseImage(&labeledImage);
         cvReleaseImage(&combined_labelled_blob);
+        cvReleaseImage(&combined_labelled_blob_data);
+        cvReleaseImage(&combined_labelled_blob_data_bg);
+        cvReleaseImage(&combined_labelled_blob_calibration);
+        cvReleaseImage(&combined_labelled_blob_detection);
         cvReleaseImage(&combined_depth_result);
         cvReleaseImage(&rectmask);
         cvReleaseImage(&fillmask);
@@ -607,8 +772,6 @@ void *cv_threadfunc(void *ptr)
     }
     pthread_exit(NULL);
 }
-
-
 
 int main(int argc, char** argv)
 {
