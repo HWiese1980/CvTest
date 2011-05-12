@@ -42,7 +42,7 @@ double KinectHelper::GetDirectDistanceInCM(double distanceValue)
 {
     assert(dev != NULL);
     assert(depthData != NULL);
-    double ret = ((tan(distanceValue / 255 + 0.5) * 33.825 + 5.7)); // Distanz direkt von Kinect zum Objekt
+    double ret = ((tan(distanceValue / 1024 + 0.5) * 33.825 + 5.7)); // Distanz direkt von Kinect zum Objekt
     return ret;
 }
 

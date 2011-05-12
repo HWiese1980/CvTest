@@ -35,6 +35,7 @@ OBJECTDIR=${CND_BUILDDIR}/${CND_CONF}/${CND_PLATFORM}
 # Object Files
 OBJECTFILES= \
 	${OBJECTDIR}/FigureFrame.o \
+	${OBJECTDIR}/_ext/2139650202/PhidgetHelper.o \
 	${OBJECTDIR}/cvtest.o \
 	${OBJECTDIR}/_ext/2139650202/KinectHelper.o
 
@@ -69,6 +70,11 @@ ${OBJECTDIR}/FigureFrame.o: FigureFrame.cpp
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} $@.d
 	$(COMPILE.cc) -g -DDEBUG -I/usr/local/include/opencv -I/usr/include/libusb-1.0 -I/usr/local/include/libfreenect -I/usr/local/include/eigen3 -I/usr/local/include/pcl-1.0 `pkg-config --cflags opencv`    -MMD -MP -MF $@.d -o ${OBJECTDIR}/FigureFrame.o FigureFrame.cpp
+
+${OBJECTDIR}/_ext/2139650202/PhidgetHelper.o: /home/ros/NetBeansProjects/CvTest/PhidgetHelper.cpp 
+	${MKDIR} -p ${OBJECTDIR}/_ext/2139650202
+	${RM} $@.d
+	$(COMPILE.cc) -g -DDEBUG -I/usr/local/include/opencv -I/usr/include/libusb-1.0 -I/usr/local/include/libfreenect -I/usr/local/include/eigen3 -I/usr/local/include/pcl-1.0 `pkg-config --cflags opencv`    -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/2139650202/PhidgetHelper.o /home/ros/NetBeansProjects/CvTest/PhidgetHelper.cpp
 
 ${OBJECTDIR}/cvtest.o: cvtest.cpp 
 	${MKDIR} -p ${OBJECTDIR}
