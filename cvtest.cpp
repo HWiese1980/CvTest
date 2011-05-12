@@ -28,6 +28,7 @@
 #include "FigureFrame.h"
 #include "KinectHelper.h"
 #include "PhidgetHelper.h"
+#include "MotorHelper.h"
 #include "Corners.h"
 
 
@@ -509,11 +510,19 @@ void cvCross(CvArr* img, CvPoint pt, CvScalar color, int size)
 }
 
 
+volatile bool bThreadRunning = false;
+
+
 /*
  * thread for displaying the opencv content
  */
 void *cv_threadfunc(void *ptr)
 {
+    bThreadRunning = true;
+
+    PhidgetHelper::Initialize();
+    MotorHelper::Initialize();
+
     CvFont font;
     cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, 0.3, 0.3, 0, 1, CV_AA);
     
@@ -563,6 +572,7 @@ void *cv_threadfunc(void *ptr)
     // cvNamedWindow( "depth-img", 1); 
     cvNamedWindow( "combined-depth-img", 1);
     cvSetMouseCallback("combined-depth-img", onCalibrationWindowMouseClick);
+    
     // cvNamedWindow("labeled-blobs", 1);
     cvNamedWindow("figures", 1);
     // cvNamedWindow("undistorted", 1);
@@ -575,7 +585,8 @@ void *cv_threadfunc(void *ptr)
     // std::vector<cv::Point2f> corners;
 
     std::map<CornerPosition, CvPoint> calibration_corners;
-    while (1)
+    bool run = true;
+    while (run)
     {
         loopCounter++;
         //lock mutex for rgb image
@@ -755,19 +766,62 @@ void *cv_threadfunc(void *ptr)
         //pthread_mutex_unlock(&mutex_rgb);
 
         // wait for quit key
-        if (cvWaitKey(15) == 27)
-            break;
-
+        char key = cvWaitKey(15);
+        
+        switch(key)
+        {
+            default: std::cout << "Unknown key: " << key << std::endl;
+            case -1: break;
+            case 'R': 
+            {
+                if(MotorHelper::State == GoingBackward) 
+                    MotorHelper::Stop();
+                else
+                    MotorHelper::GoForward(0xFF);
+                break;
+            }
+            case 'T': 
+            {
+                if(MotorHelper::State == GoingForward) 
+                    MotorHelper::Stop();
+                else
+                    MotorHelper::GoBackward(0xFF);
+                break;
+            }
+            case 'Q': 
+            {
+                if(MotorHelper::State == TurningRight)
+                    MotorHelper::Stop();
+                else
+                    MotorHelper::TurnLeft(0xFF);
+                break;
+            }
+            case 'S': 
+            {
+                if(MotorHelper::State == TurningLeft)
+                    MotorHelper::Stop();
+                else
+                    MotorHelper::TurnRight(0xFF);
+                break;
+            }
+            case 27: 
+            {
+                run = false;
+                break;
+            }
+        }
     }
+    
+    std::cout << "STOPPING!" << std::endl;
+    
     pthread_exit(NULL);
+    bThreadRunning = false;
 }
 
 int main(int argc, char** argv)
 {
     srand(time(NULL));
     
-    PhidgetHelper::Initialize();
-
     freenect_context* f_ctx;
     freenect_device* f_dev;
 
@@ -803,7 +857,7 @@ int main(int argc, char** argv)
     freenect_start_depth(f_dev);
     freenect_start_video(f_dev);
 
-    while (!die && freenect_process_events(f_ctx) >= 0);
+    while (bThreadRunning && !die && freenect_process_events(f_ctx) >= 0);
 
     return 0;
 }

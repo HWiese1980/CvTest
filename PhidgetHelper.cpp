@@ -52,9 +52,10 @@ int PhidgetHelper::SpatialDataHandler(CPhidgetSpatialHandle spatial, void* userp
         if(angle - add < 0) angle += 360;
         
         angle += add;
+        
+        std::cout << "Angle changed to: " << angle << std::endl;
     }
 
-    std::cout << "Angle: " << angle << std::endl;
     lastAngleTime = curAngleTime;
     
 }

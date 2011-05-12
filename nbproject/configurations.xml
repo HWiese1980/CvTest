@@ -10,6 +10,7 @@
       <itemPath>/home/ros/NetBeansProjects/CvTest/MinMax.h</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/MotorHelper.h</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/PhidgetHelper.h</itemPath>
+      <itemPath>/home/ros/NetBeansProjects/CvTest/global.h</itemPath>
     </logicalFolder>
     <logicalFolder name="ResourceFiles"
                    displayName="Resource Files"
