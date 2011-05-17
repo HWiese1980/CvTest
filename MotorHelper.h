@@ -9,7 +9,7 @@
 #define	MOTORHELPER_H
 #include <SerialStream.h> // TODO: Serielle Verbindung zum Arduino funktioniert nicht, weil die BAUD RATE nicht stimmt!!! 
 
-using namespace 
+using namespace LibSerial;
 
 typedef enum { 
     GoingForward,
@@ -35,7 +35,7 @@ public:
     MotorHelper(const MotorHelper& orig);
     virtual ~MotorHelper();
 private:
-    static LibSerial::SerialStream arduinoConnection;
+    static SerialStream arduinoConnection;
     static void RawSend(unsigned char directionA, unsigned char directionB, unsigned char A, unsigned char B);
 };
 

@@ -5,6 +5,7 @@
                    displayName="Header Files"
                    projectFiles="true">
       <itemPath>/home/ros/NetBeansProjects/CvTest/Corners.h</itemPath>
+      <itemPath>/home/ros/NetBeansProjects/CvTest/CvShapes.h</itemPath>
       <itemPath>FigureFrame.h</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/KinectHelper.h</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/MinMax.h</itemPath>
@@ -19,6 +20,7 @@
     <logicalFolder name="SourceFiles"
                    displayName="Source Files"
                    projectFiles="true">
+      <itemPath>/home/ros/NetBeansProjects/CvTest/CvShapes.cpp</itemPath>
       <itemPath>FigureFrame.cpp</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/KinectHelper.cpp</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/MotorHelper.cpp</itemPath>
@@ -56,6 +58,7 @@
         </cTool>
         <ccTool>
           <incDir>
+            <pElem>/usr/local/include</pElem>
             <pElem>/usr/local/include/opencv</pElem>
             <pElem>/usr/include/libusb-1.0</pElem>
             <pElem>/usr/local/include/libfreenect</pElem>

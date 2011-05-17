@@ -13,17 +13,37 @@
 #include <opencv/cv.h>
 #include <libfreenect/libfreenect.h>
 #include <cvblob.h>
+
+#include <functional>
 #include <iostream>
+#include <queue>
 
 #include <list>
 #include <cmath>
 
+#include <boost/numeric/ublas/matrix.hpp>
+#include <boost/numeric/ublas/vector.hpp>
+#include <boost/numeric/ublas/io.hpp>
+
+#include "CvShapes.h"
+
+#define BNU boost::numeric::ublas
+
+bool fartherRight(CvPoint a, CvPoint b);
+bool fartherLeft(CvPoint a, CvPoint b);
+bool fartherUp(CvPoint a, CvPoint b);
+bool fartherDown(CvPoint a, CvPoint b);
+void Raster(CvPoint& point, double x, double y);
+std::queue<CvPoint> Border(std::vector<CvPoint> points, std::function<bool()> func);
+
 class KinectHelper {
 public:
-    static const double fov = DEG2RAD(62.7);
+    static const double fov;
     static double view_plane_distance_cm, v_px_per_cm, h_px_per_cm; 
     static double frame_offset;
     static double distance_coefficient;
+    
+    static BNU::vector<double> projectiveTransformationVector;
     
     static double GetDirectDistance(CvPoint pt);
     static double GetDirectDistanceInCM(double distanceValue);
@@ -33,6 +53,8 @@ public:
     
     static void CalibrateVanishingPoint(); static bool bVPCalibrated;
     static void CalibrateAnglesAndViewport(); static bool bAandVCalibrated;
+    static void SetupProjectionVector();
+    
     static void DrawCalibrationData(CvArr* img);
 
     static CvPoint GetAbsoluteX(CvPoint point);
@@ -41,6 +63,10 @@ public:
     static CvPoint GetLeftFrameEdgeVector();
     static CvPoint GetOnImageVector(double XOnImage);
     static CvPoint GetToPosVector(double Distance);
+    
+    static void DrawProjectedPoint(CvArr* img, CvPoint point);
+    static CvPoint ProjectPoint(CvPoint point);
+    static void ProjectImage(CvArr* src, CvArr* dst);
     
     static std::list<double> avg_values;
     
@@ -53,7 +79,7 @@ public:
     static CvArr* depthData;
     
     static CvPoint VanishingPoint;
-    static vector<CvPoint> pointsUsedForCalibration;
+    static std::vector<CvPoint> pointsUsedForCalibration;
 };
 
 CvPoint operator+(CvPoint a, CvPoint b);

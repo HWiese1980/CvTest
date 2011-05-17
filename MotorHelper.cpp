@@ -16,62 +16,69 @@
 
 #include "global.h"
 
+using namespace LibSerial;
+
 
 MovementState MotorHelper::State = Stopped;
+SerialStream MotorHelper::arduinoConnection;
 
 void MotorHelper::Initialize()
 {
-    // arduinoStream.open("/dev/ard_relay", std::ios::out | std::ios::binary);
     
-    arduinoConnection.Open()
-           
-            
-    std::cout << "Arduino Motor Relay opened: " << (arduinoPort.good() ? "YES" : "NO") << std::endl;
+    arduinoConnection.Open("/dev/ttyARD_relay");
+    // arduinoConnection.Open("/dev/ttyUSB1");
+    arduinoConnection.SetBaudRate(SerialStreamBuf::BAUD_115200);
+    arduinoConnection.SetCharSize(SerialStreamBuf::CHAR_SIZE_8);
+    arduinoConnection.SetParity(SerialStreamBuf::PARITY_NONE);
+    arduinoConnection.SetNumOfStopBits(1);
+
+    std::string answer;
+    
+    std::cout << "Initialize I2C" << std::endl;
+    
+    std::cout << "Arduino Motor Relay opened: " << (arduinoConnection.good() ? "YES" : "NO") << std::endl;
 }
 
 void MotorHelper::Reset()
 {
-    assert(arduinoStream.is_open() && arduinoStream.good());
-    arduinoPort << "RESET" << std::flush;
-    assert(arduinoStream.good());
+    assert(arduinoConnection.IsOpen() && arduinoConnection.good());
+    arduinoConnection << 0x01 << 0x02 << 0x03 << std::flush;
+    assert(arduinoConnection.good());
 }
 
 void MotorHelper::RawSend(unsigned char directionA, unsigned char directionB, unsigned char A, unsigned char B)
 {
-    
     unsigned char direction = (((directionA & 0x0F) << 4) | (directionB & 0x0F));
-    std::cout << "Raw Sending [0x" << std::hex << (unsigned int)direction << "(" << sizeof(direction) <<  ")][0x" << (unsigned int)A << "(" << sizeof(A) <<  ")][0x" << (unsigned int)B << "(" << sizeof(B) <<  ")]" << std::endl;
-    
-    assert(arduinoStream.is_open() && arduinoStream.good());
-    arduinoPort << direction << A << B << std::flush;
-    assert(arduinoStream.good());
+    assert(arduinoConnection.IsOpen() && arduinoConnection.good());
+    arduinoConnection << direction << A << B << std::flush;
+    assert(arduinoConnection.good());
 }
 
 void MotorHelper::GoForward(unsigned char speed)
 {
     std::cout << "Forward " << std::dec << (unsigned int)speed << std::endl;
-    RawSend(2, 2, speed, speed);
+    RawSend(8, 8, speed, speed);
     State = GoingForward;
 }
 
 void MotorHelper::GoBackward(unsigned char speed)
 {
     std::cout << "Backward " << std::dec << (unsigned int)speed << std::endl;
-    RawSend(1, 1, speed, speed);
+    RawSend(4, 4, speed, speed);
     State = GoingBackward;
 }
 
 void MotorHelper::TurnLeft(unsigned char speed)
 {
     std::cout << "TurnLeft " << std::dec << (unsigned int)speed << std::endl;
-    RawSend(1, 2, speed, speed);
+    RawSend(4, 8, speed, speed);
     State = TurningLeft;
 }
 
 void MotorHelper::TurnRight(unsigned char speed)
 {
     std::cout << "TurnRight " << std::dec << (unsigned int)speed << std::endl;
-    RawSend(2, 1, speed, speed);
+    RawSend(8, 4, speed, speed);
     State = TurningRight;
 }
 

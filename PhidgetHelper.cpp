@@ -29,6 +29,8 @@ std::ostream& operator<<(std::ostream& s, timespec t)
 
 int PhidgetHelper::SpatialDataHandler(CPhidgetSpatialHandle spatial, void* userptr, CPhidgetSpatial_SpatialEventDataHandle* data, int count)
 {
+    static double pre_angle = 0.0;
+    
     timespec t;
     if(clock_gettime(CLOCK_MONOTONIC, &t))
     {
@@ -45,15 +47,20 @@ int PhidgetHelper::SpatialDataHandler(CPhidgetSpatialHandle spatial, void* userp
     CPhidgetSpatial_SpatialEventDataHandle last = data[count-1];
     
     double length = sqrt(pow(last->angularRate[0], 2) + pow(last->angularRate[1], 2) + pow(last->angularRate[2], 2));
-    if(length > 1 && lastAngleTime != 0)
+    if(length > 1.5 && lastAngleTime != 0)
     {
         double add = (last->angularRate[2] * secs);
         if(angle + add > 360) angle -= 360;
         if(angle - add < 0) angle += 360;
         
-        angle += add;
+        pre_angle += add;
         
-        std::cout << "Angle changed to: " << angle << std::endl;
+        if(abs(pre_angle) > 2)
+        {
+            angle += pre_angle;
+            pre_angle = 0.0;
+            std::cout << "Angle changed to: " << angle << " due to rotation rate " << length << std::endl;        
+        }
     }
 
     lastAngleTime = curAngleTime;

@@ -30,7 +30,7 @@
 #include "PhidgetHelper.h"
 #include "MotorHelper.h"
 #include "Corners.h"
-
+#include "CvShapes.h"
 
 #include <cvblob.h>
 #include <opencv/cv.hpp>
@@ -161,201 +161,21 @@ void CombineTransparent(CvArr* a, CvArr* b, CvArr* c, double Transparency = 1.0)
     }
 }
 
-/*
-bool LiesWithinExistingFrame(int x, int y)
-{
-    // return false;
-    
-    
-    std::vector<FigureFrame>::iterator it;
-    for(it = frames.begin(); it != frames.end(); it++)
-    {
-        if(it->IsInside(x,y)) return true;
-    }
-    return false;
-   
-}
-/**/
-
-/*
-std::map<int, std::vector<S_XY> > indexedPixels;
-int PixelIndexed(S_XY pixel)
-{
-    for(std::map<int, std::vector<S_XY> >::iterator it = indexedPixels.begin(); it != indexedPixels.end(); it++)
-    {
-        for(std::vector<S_XY>::iterator vit = (*it).second.begin(); vit != (*it).second.end(); vit++)
-        {
-            if((*vit).x == pixel.x & (*vit).y == pixel.y) return (*it).first;
-        }
-    }
-    return -1;
-}
-
-std::vector<SConflict> conflicts;
-std::map<int, FigureFrame> objects;
-void MarkBlobs(cv::Mat& matrix)
-{
-    objects.clear();
-    int index = 0;
-    cvZero(rectangles);
-    for(int y = 0; y < matrix.rows - 1; y++)
-    {
-        uchar* rowPtr = matrix.ptr(y);
-        for(int x = 0; x < matrix.cols; x++)
-        {
-            uchar* pixPtr = &rowPtr[x];
-            if(*pixPtr >= 255)
-            {
-                int idxDown = PixelIndexed({x, y + 1});
-                int idxLeft = PixelIndexed({x - 1, y});
-                
-                S_XY currentPixel = {x, y};
-                if(idxDown == -1 & idxLeft == -1) // neues Objekt
-                {
-                    // printf("New Object found at %i:%i\n", x,y);
-                    index++;
-                    indexedPixels[index].push_back(currentPixel);
-                }
-                else if(idxLeft == -1 & idxDown >= 0) // aktuelles Objekt
-                {
-                    indexedPixels[index].push_back(currentPixel);
-                }
-                else if(idxDown == -1 & idxLeft >= 0) // anderes Objekt mit Index
-                {
-                    indexedPixels[idxLeft].push_back(currentPixel);
-                }
-                else if(idxDown >= 0 & idxLeft >= 0)
-                {
-                    if(idxDown == idxLeft) // selbes Objekt
-                    {
-                        indexedPixels[index].push_back(currentPixel);
-                    }
-                    else // unterschiedliche Objekte ==> Konflikt
-                    {
-                        SConflict conflict;
-                        conflict.x = x; conflict.y = y;
-                        conflict.index1 = idxLeft;
-                        conflict.index2 = idxDown;
-                        conflicts.push_back(conflict);
-                        printf("Conflict found at [%i:%i]: %i vs. %i\n", x, y, idxLeft, idxDown);
-                    }
-                }
-            }
-        }
-    }
-}
-**/
-
-/*
-void MarkBlobs(cv::Mat& matrix)
-{
-    frames.clear();
-    int rectNo = 0;
-    cvZero(rectangles);
-    for (int y = 0; y < matrix.rows; y++)
-    {
-        for (int x = 0; x < matrix.cols; x++)
-        {
-            FloodFill(matrix, x, y, 0);
-
-            int rectX1 = currentBlobMinX, rectY1 = currentBlobMinY;
-            int rectX2 = currentBlobMaxX, rectY2 = currentBlobMaxY;
-            int rectWidth = rectX2 - rectX1, rectHeight = rectY2 - rectY1;
-            
-            if(rectX1 < 0 | rectX2 < 0 | rectY1 < 0 | rectY2 < 0) continue;
-            
-            FigureFrame frame(rectX1, rectY1, rectWidth, rectHeight, rectNo);
-            
-            try
-            {
-                frame.Matrix = matrix(cvRect(rectX1, rectY1, rectWidth, rectHeight));
-            }
-            catch(...)
-            {
-                printf("Fehler beim Kopieren der Matrix\n");
-                printf("---------------------------------------\n");
-                printf("Framedaten: [%i:%i - %i:%i] [%i:%i]\n", rectY1, rectY2, rectX1, rectX2, matrix.rows, matrix.cols);
-                printf("---------------------------------------\n");
-            }
-            frame.depthImage = depthimg;
-            frames.push_back(frame);
-            
-            currentBlobMaxX = currentBlobMaxY = currentBlobMinX = currentBlobMinY = -1;
-            rectNo++;
-        }
-    }
-}
-**/
-
-/*
-void DrawFrames()
-{
-    std::vector<FigureFrame>::iterator it;
-    for(it = frames.begin(); it != frames.end(); it++)
-    {
-        (*it).Draw(rectangles);
-    }
-}
-
-void DrawMasks(CvArr* image)
-{
-    std::vector<FigureFrame>::iterator it;
-    for(it = frames.begin(); it != frames.end(); it++)
-    {
-        (*it).DrawAsMask(image);
-    }
-}
-/**/
-
-/*
-void FloodFill(cv::Mat& matrix, int x, int y, int64_t recursion_level)
-{
-    uchar* rowPtr = matrix.ptr(y);
-    uchar* pixPtr = &rowPtr[x];
-    if (*pixPtr != 255) return;
-
-
-    if (recursion_level == 0)
-    {
-        currentBlobMaxX = currentBlobMinX = x;
-        currentBlobMaxY = currentBlobMinY = y;
-    }
-    else
-    {
-        if (x < currentBlobMinX) currentBlobMinX = x;
-        if (x > currentBlobMaxX) currentBlobMaxX = x;
-        if (y < currentBlobMinY) currentBlobMinY = y;
-        if (y > currentBlobMaxY) currentBlobMaxY = y;
-    }
-
-    *pixPtr = 254;
-
-    if(x - 1 >= 0) FloodFill(matrix, x - 1, y, recursion_level + 1);
-    if(x + 1 < 640) FloodFill(matrix, x + 1, y, recursion_level + 1);
-    if(y + 1 < 480) FloodFill(matrix, x, y + 1, recursion_level + 1);
-    if(y - 1 >= 0) FloodFill(matrix, x, y - 1, recursion_level + 1);
-    return;
-}
-/**/
-
-
-
 // callback for depthimage, called by libfreenect
 void depth_cb(freenect_device *dev, void *depth, uint32_t timestamp)
 {
     cv::Mat depth8;
-    cv::Mat mydepth = cv::Mat(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT, CV_16UC1, depth);
+    cv::Mat mydepth = cv::Mat(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT, CV_8UC1, depth);
 
     // mydepth.convertTo(depth8, CV_8UC1, 1.0 / 4.0);
     pthread_mutex_lock(&mutex_depth);
-    memcpy(depthimg->imageData, mydepth.data, 640 * 480 * 2);
+    memcpy(depthimg->imageData, mydepth.data, 640 * 480);
 
     // unlock mutex
     pthread_mutex_unlock(&mutex_depth);
 }
 
 // callback for rgbimage, called by libfreenect
-
 void rgb_cb(freenect_device *dev, void *rgb, uint32_t timestamp)
 {
     // lock mutex for opencv rgb image
@@ -498,18 +318,6 @@ void ClearBorder(IplImage* img)
     }
 }
 
-void cvCross(CvArr* img, CvPoint pt, CvScalar color, int size)
-{
-    CvPoint left = pt + cv::Point(-size, 0);
-    CvPoint right = pt + cv::Point(size, 0);
-    CvPoint up = pt + cv::Point(0, -size);
-    CvPoint down = pt + cv::Point(0, size);
-    
-    cvLine(img, left, right, color);
-    cvLine(img, up, down, color);
-}
-
-
 volatile bool bThreadRunning = false;
 
 
@@ -545,8 +353,8 @@ void *cv_threadfunc(void *ptr)
     cvCreateTrackbar("Max Height", "GUI", &FigureFrame::mmHeight.Max, 255, cv_maxHeight_cb);
 
     cvCreateTrackbar("Kinect Angle", "GUI", &_kin_angle, 360, cv_KinAngle_cb);
-    cvCreateTrackbar("Kinect X", "GUI", &_kin_x, 1000, cv_KinX_cb);
-    cvCreateTrackbar("Kinect Y", "GUI", &_kin_y, 1000, cv_KinY_cb);
+    cvCreateTrackbar("Kinect X", "GUI", &_kin_x, 10000, cv_KinX_cb);
+    cvCreateTrackbar("Kinect Y", "GUI", &_kin_y, 10000, cv_KinY_cb);
 
     
     depthimg = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_16U, FREENECTOPENCV_DEPTH_DEPTH);
@@ -575,6 +383,7 @@ void *cv_threadfunc(void *ptr)
     
     // cvNamedWindow("labeled-blobs", 1);
     cvNamedWindow("figures", 1);
+    cvNamedWindow("projection", 1);
     // cvNamedWindow("undistorted", 1);
     
     CvTracks tracks;
@@ -630,6 +439,7 @@ void *cv_threadfunc(void *ptr)
         IplImage* combined_labelled_blob_data = cvCreateImage(cvGetSize(hsvmask), IPL_DEPTH_8U, 3);
         IplImage* combined_labelled_blob_data_bg = cvCreateImage(cvGetSize(hsvmask), IPL_DEPTH_8U, 3);
         IplImage* combined_labelled_blob = cvCreateImage(cvGetSize(hsvmask), IPL_DEPTH_8U, 3);
+        IplImage* projected_image = cvCreateImage(cvGetSize(hsvmask), IPL_DEPTH_8U, 3);
         
         IplImage* labeledImage = cvCreateImage(cvGetSize(combined_result), IPL_DEPTH_LABEL, 1);
         // IplImage* rgb_equalized = cvCreateImage(cvGetSize(rgbimg), IPL_DEPTH_8U, FREENECTOPENCV_RGB_DEPTH);
@@ -667,9 +477,10 @@ void *cv_threadfunc(void *ptr)
                 {
                     CvPoint pt;
                     CvPoint base_pt = KinectHelper::GetAbsoluteX(blob_pt);
-                    cvLine(combined_labelled_blob_detection, KinectHelper::VanishingPoint, base_pt, CV_RGB(0,255,0), 2);
+                    
+                    // cvLine(combined_labelled_blob_detection, KinectHelper::VanishingPoint, base_pt, CV_RGB(0,255,0), 2);
 
-                    pt = KinectHelper::GetAbsoluteCoordinates(dist[0], base_pt.x);
+                    pt = KinectHelper::GetAbsoluteCoordinates(base_pt.y, base_pt.x);
                     CvPoint absXPt = KinectHelper::GetAbsoluteX(blob_pt);
                     
                     char coord_text[255];
@@ -679,10 +490,12 @@ void *cv_threadfunc(void *ptr)
                     sprintf(coord_text, "Absol. X: x:%i:y:%i", absXPt.x, absXPt.y);
                     cvPutText(combined_labelled_blob_data, coord_text, cv::Point(cent_x + 10, cent_y + 45), &font, cv::Scalar(0, 255, 255, 0) );
 
+                    /*
                     CvPoint kin_pt = cv::Point(320, 240);
                     CvPoint kinEdge_pt = kin_pt + (KinectHelper::GetLeftFrameEdgeVector() * 0.1);
                     CvPoint kinOnFr_pt = kinEdge_pt + (KinectHelper::GetOnImageVector(base_pt.x) * 0.1);
                     CvPoint kinPos__pt = kinOnFr_pt + (KinectHelper::GetToPosVector(dist[0] * KinectHelper::distance_coefficient) * 0.1);
+                    
                     
                     cvCircle(figurePositionsImage, kin_pt, 4, CV_RGB(255, 128, 0), CV_FILLED);
                     cvCircle(figurePositionsImage, kin_pt, 4, CV_RGB(255, 192, 0), 2);
@@ -690,8 +503,10 @@ void *cv_threadfunc(void *ptr)
                     cvLine(figurePositionsImage, kin_pt, kinEdge_pt, CV_RGB(255, 128, 0));
                     cvCircle(figurePositionsImage, kinOnFr_pt, 3, CV_RGB(128, 255, 0), CV_FILLED);
                     cvCircle(figurePositionsImage, kinPos__pt, 3, CV_RGB(255, 255, 0), CV_FILLED);
+                    */
 
                     cvCircle(figurePositionsImage, pt, 5, cv::Scalar(0,255,255, 0), CV_FILLED);
+                    
                 }
 
                 char distance_text[255];
@@ -699,7 +514,10 @@ void *cv_threadfunc(void *ptr)
                 cvPutText(combined_labelled_blob_data, distance_text, cv::Point(cent_x + 10, cent_y + 15), &font, cv::Scalar(0, 128, 255, 0) );
                 
                 cvCross(combined_labelled_blob_detection, blob_pt, CV_RGB(255, 0, 0), 5);
-                cvRectangle(combined_labelled_blob_detection, cv::Point(blb.minx, blb.miny), cv::Point(blb.maxx, blb.maxy), CV_RGB(0, 255, 0), 2);
+                // cvRectangle(combined_labelled_blob_detection, cv::Point(blb.minx, blb.miny), cv::Point(blb.maxx, blb.maxy), CV_RGB(0, 255, 0), 2);
+                
+                if(KinectHelper::pointsUsedForCalibration.size() >= 4)
+                    KinectHelper::DrawProjectedPoint(combined_labelled_blob_detection, blob_pt);
 
                 // figurePositions.push_back(pt);
                 
@@ -727,8 +545,12 @@ void *cv_threadfunc(void *ptr)
 
         KinectHelper::CalibrateAnglesAndViewport();
         KinectHelper::CalibrateVanishingPoint();
+        KinectHelper::SetupProjectionVector();
         KinectHelper::DrawCalibrationData(combined_labelled_blob_calibration);
-      
+
+        //KinectHelper::ProjectImage(rgbimg, projected_image);
+        //cvShowImage("projection", projected_image);
+        
         std::vector< std::pair< CvArr*, double > > imageStack;
         
         imageStack.push_back({ rgbimg, 1.0 });
@@ -759,6 +581,7 @@ void *cv_threadfunc(void *ptr)
         cvReleaseImage(&combined_labelled_blob_calibration);
         cvReleaseImage(&combined_labelled_blob_detection);
         cvReleaseImage(&combined_depth_result);
+        cvReleaseImage(&projected_image);
         cvReleaseImage(&rectmask);
         cvReleaseImage(&fillmask);
 

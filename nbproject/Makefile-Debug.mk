@@ -37,6 +37,7 @@ OBJECTFILES= \
 	${OBJECTDIR}/FigureFrame.o \
 	${OBJECTDIR}/_ext/2139650202/PhidgetHelper.o \
 	${OBJECTDIR}/_ext/2139650202/MotorHelper.o \
+	${OBJECTDIR}/_ext/2139650202/CvShapes.o \
 	${OBJECTDIR}/cvtest.o \
 	${OBJECTDIR}/_ext/2139650202/KinectHelper.o
 
@@ -70,27 +71,32 @@ ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/cvtest: ${OBJECTFILES}
 ${OBJECTDIR}/FigureFrame.o: FigureFrame.cpp 
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} $@.d
-	$(COMPILE.cc) -g -DDEBUG -I/usr/local/include/opencv -I/usr/include/libusb-1.0 -I/usr/local/include/libfreenect -I/usr/local/include/eigen3 -I/usr/local/include/pcl-1.0 `pkg-config --cflags opencv`    -MMD -MP -MF $@.d -o ${OBJECTDIR}/FigureFrame.o FigureFrame.cpp
+	$(COMPILE.cc) -g -DDEBUG -I/usr/local/include -I/usr/local/include/opencv -I/usr/include/libusb-1.0 -I/usr/local/include/libfreenect -I/usr/local/include/eigen3 -I/usr/local/include/pcl-1.0 `pkg-config --cflags opencv`    -MMD -MP -MF $@.d -o ${OBJECTDIR}/FigureFrame.o FigureFrame.cpp
 
 ${OBJECTDIR}/_ext/2139650202/PhidgetHelper.o: /home/ros/NetBeansProjects/CvTest/PhidgetHelper.cpp 
 	${MKDIR} -p ${OBJECTDIR}/_ext/2139650202
 	${RM} $@.d
-	$(COMPILE.cc) -g -DDEBUG -I/usr/local/include/opencv -I/usr/include/libusb-1.0 -I/usr/local/include/libfreenect -I/usr/local/include/eigen3 -I/usr/local/include/pcl-1.0 `pkg-config --cflags opencv`    -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/2139650202/PhidgetHelper.o /home/ros/NetBeansProjects/CvTest/PhidgetHelper.cpp
+	$(COMPILE.cc) -g -DDEBUG -I/usr/local/include -I/usr/local/include/opencv -I/usr/include/libusb-1.0 -I/usr/local/include/libfreenect -I/usr/local/include/eigen3 -I/usr/local/include/pcl-1.0 `pkg-config --cflags opencv`    -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/2139650202/PhidgetHelper.o /home/ros/NetBeansProjects/CvTest/PhidgetHelper.cpp
 
 ${OBJECTDIR}/_ext/2139650202/MotorHelper.o: /home/ros/NetBeansProjects/CvTest/MotorHelper.cpp 
 	${MKDIR} -p ${OBJECTDIR}/_ext/2139650202
 	${RM} $@.d
-	$(COMPILE.cc) -g -DDEBUG -I/usr/local/include/opencv -I/usr/include/libusb-1.0 -I/usr/local/include/libfreenect -I/usr/local/include/eigen3 -I/usr/local/include/pcl-1.0 `pkg-config --cflags opencv`    -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/2139650202/MotorHelper.o /home/ros/NetBeansProjects/CvTest/MotorHelper.cpp
+	$(COMPILE.cc) -g -DDEBUG -I/usr/local/include -I/usr/local/include/opencv -I/usr/include/libusb-1.0 -I/usr/local/include/libfreenect -I/usr/local/include/eigen3 -I/usr/local/include/pcl-1.0 `pkg-config --cflags opencv`    -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/2139650202/MotorHelper.o /home/ros/NetBeansProjects/CvTest/MotorHelper.cpp
+
+${OBJECTDIR}/_ext/2139650202/CvShapes.o: /home/ros/NetBeansProjects/CvTest/CvShapes.cpp 
+	${MKDIR} -p ${OBJECTDIR}/_ext/2139650202
+	${RM} $@.d
+	$(COMPILE.cc) -g -DDEBUG -I/usr/local/include -I/usr/local/include/opencv -I/usr/include/libusb-1.0 -I/usr/local/include/libfreenect -I/usr/local/include/eigen3 -I/usr/local/include/pcl-1.0 `pkg-config --cflags opencv`    -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/2139650202/CvShapes.o /home/ros/NetBeansProjects/CvTest/CvShapes.cpp
 
 ${OBJECTDIR}/cvtest.o: cvtest.cpp 
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} $@.d
-	$(COMPILE.cc) -g -DDEBUG -I/usr/local/include/opencv -I/usr/include/libusb-1.0 -I/usr/local/include/libfreenect -I/usr/local/include/eigen3 -I/usr/local/include/pcl-1.0 `pkg-config --cflags opencv`    -MMD -MP -MF $@.d -o ${OBJECTDIR}/cvtest.o cvtest.cpp
+	$(COMPILE.cc) -g -DDEBUG -I/usr/local/include -I/usr/local/include/opencv -I/usr/include/libusb-1.0 -I/usr/local/include/libfreenect -I/usr/local/include/eigen3 -I/usr/local/include/pcl-1.0 `pkg-config --cflags opencv`    -MMD -MP -MF $@.d -o ${OBJECTDIR}/cvtest.o cvtest.cpp
 
 ${OBJECTDIR}/_ext/2139650202/KinectHelper.o: /home/ros/NetBeansProjects/CvTest/KinectHelper.cpp 
 	${MKDIR} -p ${OBJECTDIR}/_ext/2139650202
 	${RM} $@.d
-	$(COMPILE.cc) -g -DDEBUG -I/usr/local/include/opencv -I/usr/include/libusb-1.0 -I/usr/local/include/libfreenect -I/usr/local/include/eigen3 -I/usr/local/include/pcl-1.0 `pkg-config --cflags opencv`    -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/2139650202/KinectHelper.o /home/ros/NetBeansProjects/CvTest/KinectHelper.cpp
+	$(COMPILE.cc) -g -DDEBUG -I/usr/local/include -I/usr/local/include/opencv -I/usr/include/libusb-1.0 -I/usr/local/include/libfreenect -I/usr/local/include/eigen3 -I/usr/local/include/pcl-1.0 `pkg-config --cflags opencv`    -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/2139650202/KinectHelper.o /home/ros/NetBeansProjects/CvTest/KinectHelper.cpp
 
 # Subprojects
 .build-subprojects:

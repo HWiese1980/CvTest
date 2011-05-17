@@ -75,7 +75,8 @@ CvPoint FigureFrame::GetCenterOfGravity()
     if(this->Matrix.rows <= 0 | this->Matrix.cols <= 0)
         return cvPoint(0,0);
     
-    IplImage* pImg = &(IplImage)this->Matrix;
+    
+    IplImage* pImg = new IplImage(this->Matrix);
     
     cvMoments(pImg, &this->moments, 1);
 
