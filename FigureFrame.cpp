@@ -11,7 +11,7 @@
 #include <cmath>
 
 IplImage* FigureFrame::depthImage = NULL;
-SMinMax FigureFrame::mmWidth = {50, 150};
+SMinMax FigureFrame::mmWidth = {4, 2};
 SMinMax FigureFrame::mmHeight = {10, 120};
 
 FigureFrame::FigureFrame()

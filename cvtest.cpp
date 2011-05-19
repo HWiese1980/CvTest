@@ -64,7 +64,7 @@ IplImage* depth_rgb = 0;
 
 IplImage* clamped_hsv = 0; // hsv mask married to clamped depth data
 
-CvScalar hsv_min = cvScalar(20, 0, 100, 0);
+CvScalar hsv_min = cvScalar(20, 70, 0, 0);
 CvScalar hsv_max = cvScalar(50, 255, 255, 0);
 CvScalar depth_clamp_min = cvScalar(0, 0, 0, 0);
 CvScalar depth_clamp_max = cvScalar(128, 128, 128, 128);
@@ -251,6 +251,12 @@ void cv_KinY_cb(int value)
     KinectHelper::absolute_y = value;
 }
 
+void cv_KinScale_cb(int value)
+{
+    KinectHelper::scale = (value / 100.0);
+    std::cout << "Setting Kinect Scale to " << KinectHelper::scale << std::endl;
+}
+
 int lower_thresh = hsv_min.val[0], upper_thresh = hsv_max.val[0];
 int lower_sat_thresh = hsv_min.val[1], upper_sat_thresh = hsv_max.val[1];
 int lower_val_thresh = hsv_min.val[2], upper_val_thresh = hsv_max.val[2];
@@ -295,6 +301,27 @@ void ClearBlobAt(IplImage* img, CvPoint Pt)
     if(scal.val[0] > 0) cvFloodFill(img, Pt, CV_RGB(1,0,0));
 }
 
+void DrawCheckerBord(CvArr* img)
+{
+    double field_width_in_px = KinectHelper::In_px(35, Horizontal);
+    double field_height_in_px = KinectHelper::In_px(35, Vertical);
+
+    std::cout << "Field - Height in PX: " <<field_height_in_px << "; Width in PX: " << field_width_in_px << std::endl;
+    
+    int colidx = 1;
+    cv::Scalar col[2] = { CV_RGB(255, 0, 0), CV_RGB(0, 0, 255) };
+    
+    for(int j=0; j < 6; j++)
+    {
+        for(int i = 0; i < 6; i++)
+        {
+            cvRectangle(img, cv::Point(i * field_width_in_px, j * field_height_in_px) * KinectHelper::scale, cv::Point((i + 1) * field_width_in_px, (j + 1) * field_height_in_px) * KinectHelper::scale, col[colidx], CV_FILLED);
+            colidx = (colidx == 0) ? 1 : 0;
+        }
+        colidx = (colidx == 0) ? 1 : 0;
+    }
+}
+
 bool bSkipClearBorder = false;
 void ClearBorder(IplImage* img)
 {
@@ -319,7 +346,6 @@ void ClearBorder(IplImage* img)
 }
 
 volatile bool bThreadRunning = false;
-
 
 /*
  * thread for displaying the opencv content
@@ -346,8 +372,8 @@ void *cv_threadfunc(void *ptr)
     cvCreateTrackbar("Lower Threshold Val", "GUI", &lower_val_thresh, 255, cv_lower_val_cb);
     cvCreateTrackbar("Upper Threshold Val", "GUI", &upper_val_thresh, 255, cv_upper_val_cb);
 
-    cvCreateTrackbar("Min Width", "GUI", &FigureFrame::mmWidth.Min, 255, cv_minWidth_cb);
-    cvCreateTrackbar("Max Width", "GUI", &FigureFrame::mmWidth.Max, 255, cv_maxWidth_cb);
+    cvCreateTrackbar("Erode", "GUI", &FigureFrame::mmWidth.Min, 255, cv_minWidth_cb);
+    cvCreateTrackbar("Dilate", "GUI", &FigureFrame::mmWidth.Max, 255, cv_maxWidth_cb);
 
     cvCreateTrackbar("Min Height", "GUI", &FigureFrame::mmHeight.Min, 255, cv_minHeight_cb);
     cvCreateTrackbar("Max Height", "GUI", &FigureFrame::mmHeight.Max, 255, cv_maxHeight_cb);
@@ -355,6 +381,9 @@ void *cv_threadfunc(void *ptr)
     cvCreateTrackbar("Kinect Angle", "GUI", &_kin_angle, 360, cv_KinAngle_cb);
     cvCreateTrackbar("Kinect X", "GUI", &_kin_x, 10000, cv_KinX_cb);
     cvCreateTrackbar("Kinect Y", "GUI", &_kin_y, 10000, cv_KinY_cb);
+    
+    int scale = (KinectHelper::scale * 100);
+    cvCreateTrackbar("Kinect Scale", "GUI", &scale, 100, cv_KinScale_cb);
 
     
     depthimg = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_16U, FREENECTOPENCV_DEPTH_DEPTH);
@@ -383,7 +412,7 @@ void *cv_threadfunc(void *ptr)
     
     // cvNamedWindow("labeled-blobs", 1);
     cvNamedWindow("figures", 1);
-    cvNamedWindow("projection", 1);
+    // cvNamedWindow("projection", 1);
     // cvNamedWindow("undistorted", 1);
     
     CvTracks tracks;
@@ -410,7 +439,7 @@ void *cv_threadfunc(void *ptr)
         cvInRangeS(hsvimg, hsv_min, hsv_max, checker_mask);
 
         cvErode(hsvmask, hsvmask, NULL, 4);
-        cvDilate(hsvmask, hsvmask, NULL, 2);
+        cvDilate(hsvmask, hsvmask, NULL, 1);
         ClearBorder(hsvmask);
         cvShowImage("hsv-msk", hsvmask); // hsvmask->origin = 1;
 
@@ -451,6 +480,9 @@ void *cv_threadfunc(void *ptr)
 
         cvFilterByArea(blobs, 500, 1000000);
 
+        
+        if(KinectHelper::pointsUsedForCalibration.size() == 4) DrawCheckerBord(figurePositionsImage);
+
         int blobCnt = 0;
         for(CvBlobs::iterator it = blobs.begin(); it != blobs.end(); it++)
         {
@@ -459,13 +491,14 @@ void *cv_threadfunc(void *ptr)
             try
             {
                 double cent_x = blb.centroid.x, cent_y = blb.centroid.y;
-                cv::Scalar dist = cvGet2D(depthimg, cent_y, cent_x); // Row/Col Reihenfolge
+                
+                // cv::Scalar dist = cvGet2D(depthimg, cent_y, cent_x); // Row/Col Reihenfolge
                 // if(*dist.val > 200) continue;
 
                 // Formel: DIST_CM = TAN(DIST_K / MAX_DIST + 0.5) * 33.825 + 5.7
 
-                double dist_over_ground = KinectHelper::GetDistanceOverGround(dist[0]);
-                if(dist_over_ground > 250 || dist_over_ground < 20) continue; // Objekt zu weit weg oder zu dicht dran
+                // double dist_over_ground = KinectHelper::GetDistanceOverGround(dist[0]);
+                // if(dist_over_ground > 250 || dist_over_ground < 20) continue; // Objekt zu weit weg oder zu dicht dran
                 
                 // Infofenster
                 cvRectangle(combined_labelled_blob_data_bg, cv::Point(cent_x + 5, cent_y + 5), cv::Point(cent_x + 130, cent_y + 60), CV_RGB(5,5, 5), 2);
@@ -504,16 +537,20 @@ void *cv_threadfunc(void *ptr)
                     cvCircle(figurePositionsImage, kinOnFr_pt, 3, CV_RGB(128, 255, 0), CV_FILLED);
                     cvCircle(figurePositionsImage, kinPos__pt, 3, CV_RGB(255, 255, 0), CV_FILLED);
                     */
-
-                    cvCircle(figurePositionsImage, pt, 5, cv::Scalar(0,255,255, 0), CV_FILLED);
+                    
+                    KinectHelper::Raster(pt, KinectHelper::In_px(17.5 /* KinectHelper::scale*/, Horizontal), KinectHelper::In_px(17.5 /* KinectHelper::scale*/, Vertical));
+                    
+                    cvCircle(figurePositionsImage, pt * KinectHelper::scale, KinectHelper::In_px(10 * KinectHelper::scale, Horizontal), CV_RGB(255, 255, 0), 3);
+                    cvCross(figurePositionsImage, pt * KinectHelper::scale, KinectHelper::In_px(11 * KinectHelper::scale, Horizontal), CV_RGB(255, 255, 0), 2);
                     
                 }
 
-                char distance_text[255];
-                sprintf(distance_text, "%i: %0.2f cm", blobCnt, dist_over_ground);
-                cvPutText(combined_labelled_blob_data, distance_text, cv::Point(cent_x + 10, cent_y + 15), &font, cv::Scalar(0, 128, 255, 0) );
+
+//                char distance_text[255];
+//                sprintf(distance_text, "%i: %0.2f cm", blobCnt, dist_over_ground);
+//                cvPutText(combined_labelled_blob_data, distance_text, cv::Point(cent_x + 10, cent_y + 15), &font, cv::Scalar(0, 128, 255, 0) );
                 
-                cvCross(combined_labelled_blob_detection, blob_pt, CV_RGB(255, 0, 0), 5);
+                cvCross(combined_labelled_blob_detection, blob_pt, 5, CV_RGB(255, 0, 0));
                 // cvRectangle(combined_labelled_blob_detection, cv::Point(blb.minx, blb.miny), cv::Point(blb.maxx, blb.maxy), CV_RGB(0, 255, 0), 2);
                 
                 if(KinectHelper::pointsUsedForCalibration.size() >= 4)
@@ -529,9 +566,9 @@ void *cv_threadfunc(void *ptr)
                 std::cerr << "Error fetching distance..." << std::endl;
             }
             
-            CvContourPolygon *poly = cvConvertChainCodesToPolygon(&(*it).second->contour);
-            CvContourPolygon *sPoly = cvSimplifyPolygon(poly, 5);
-            CvContourPolygon *cPoly = cvPolygonContourConvexHull(sPoly);
+//            CvContourPolygon *poly = cvConvertChainCodesToPolygon(&(*it).second->contour);
+//            CvContourPolygon *sPoly = cvSimplifyPolygon(poly, 5);
+//            CvContourPolygon *cPoly = cvPolygonContourConvexHull(sPoly);
             
             // cvRenderContourChainCode(&(*it).second->contour, combined_labelled_blob);
             // cvRenderContourPolygon(sPoly, combined_labelled_blob, CV_RGB(0, 255, 255));

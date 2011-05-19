@@ -12,6 +12,7 @@ freenect_device* KinectHelper::dev = NULL;
 CvArr* KinectHelper::depthData = NULL;
 std::list<double> KinectHelper::avg_values;
 std::vector<CvPoint> KinectHelper::pointsUsedForCalibration;
+CvRect KinectHelper::straight_rect;
 
 BNU::vector<double> KinectHelper::projectiveTransformationVector;
 
@@ -21,6 +22,8 @@ double KinectHelper::add_depth_cm = 0.0, KinectHelper::add_depth_px = 0.0;
 double KinectHelper::view_plane_distance_cm = 0.0;
 double KinectHelper::v_px_per_cm = 0.0, KinectHelper::h_px_per_cm = 0.0;
 double KinectHelper::distance_coefficient = 8.0;
+double KinectHelper::scale = 0.15;
+
 
 int KinectHelper::absolute_x = 0, KinectHelper::absolute_y = 0;
 bool KinectHelper::bAandVCalibrated = false;
@@ -39,7 +42,7 @@ double KinectHelper::GetTilt()
 
 double KinectHelper::GetKinectHeight()
 {
-    return 38.0; 
+    return 37.0; 
 }
 
 double KinectHelper::GetDirectDistanceInCM(double distanceValue)
@@ -61,6 +64,7 @@ double KinectHelper::GetDistanceOverGround(double distanceValue)
     return ret;
 }
 
+/*
 void KinectHelper::CalibrateAnglesAndViewport()
 {
     if(bAandVCalibrated) return;
@@ -77,6 +81,31 @@ void KinectHelper::CalibrateAnglesAndViewport()
     add_depth_px = add_depth_cm * v_px_per_cm;
     std::cout << "|--> Viewplane distance: " << view_plane_distance_cm << std::endl;
     std::cout << "|--> Additional vertical pixels: " << add_depth_px << std::endl;
+    bAandVCalibrated = true;
+}
+ * 
+ * **/
+
+void KinectHelper::CalibrateAnglesAndViewport()
+{
+    if(bAandVCalibrated) return;
+    double pitch_rad = DEG2RAD(-GetTilt());
+    double to_lower_border_rad = DEG2RAD(90) - pitch_rad - (fov/2); 
+    std::cout << "FOV: " << fov <<  "; Pitch: " << pitch_rad << std::endl;
+    
+    double dist_at_lower_border = KinectHelper::GetKinectHeight() / cos(to_lower_border_rad); // in cm
+    
+    double v_cm = (dist_at_lower_border * sin(fov/2));
+    
+    v_px_per_cm = 240.0 / v_cm; 
+    h_px_per_cm = v_px_per_cm * (640.0 / 480.0);
+    
+    view_plane_distance_cm = sin(pitch_rad) * KinectHelper::GetKinectHeight();
+    
+    std::cout << "Vertical Pixels per cm: " << v_px_per_cm << std::endl;
+    std::cout << "Horizontal Pixels per cm: " << h_px_per_cm << std::endl;
+    std::cout << "Viewplane is: " << view_plane_distance_cm << std::endl;
+    
     bAandVCalibrated = true;
 }
 
@@ -124,6 +153,26 @@ bool pointSort(CvPoint a, CvPoint b)
     return(a.x + (a.y * 1000) < b.x + (b.y * 1000));
 }
 
+double KinectHelper::In_cm(double px, Orientation o)
+{
+    switch(o)
+    {
+        case Horizontal: return (px / h_px_per_cm);
+        case Vertical: return (px / v_px_per_cm);
+        default: throw "Blubb";
+    }
+}
+
+double KinectHelper::In_px(double cm, Orientation o)
+{
+    switch(o)
+    {
+        case Horizontal: return (cm * h_px_per_cm);
+        case Vertical: return (cm * h_px_per_cm);
+        default: throw "Blubb";
+    }
+}
+
 void KinectHelper::SetupProjectionVector()
 {
     std::vector<CvPoint> straightRect;
@@ -133,16 +182,29 @@ void KinectHelper::SetupProjectionVector()
         std::vector<CvPoint> points = std::vector<CvPoint>(pointsUsedForCalibration);
         sort(points.begin(), points.end(), pointSort);
 
+        double height = In_px(70, Vertical);
+        double width = In_px(70, Horizontal);
+        CvPoint center_of_calibration = cv::Point( (points[0].x + points[1].x + points[2].x + points[3].x) / 4, (points[0].y + points[1].y + points[2].y + points[3].y) / 4);
         
-        straightRect.push_back(cv::Point((points[0].x + points[2].x) / 2, (points[0].y + points[1].y) / 2));
-        
-        straightRect.push_back(cv::Point((points[1].x + points[3].x) / 2, (points[0].y + points[1].y) / 2));
+        // straightRect.push_back(cv::Point((points[0].x + points[2].x) / 2, (points[0].y + points[1].y) / 2));
+        // straightRect.push_back(cv::Point((points[1].x + points[3].x) / 2, (points[0].y + points[1].y) / 2));
 
-        double width = straightRect[1].x - straightRect[0].x;
-        double height = (width / 640.0) * 480.0;
+
+        // double width = straightRect[1].x - straightRect[0].x;
+        // double height = (width / 640.0) * 480.0;
         
-        straightRect.push_back(cv::Point((points[0].x + points[2].x) / 2, ((points[0].y + points[1].y) / 2) + height ));
-        straightRect.push_back(cv::Point((points[1].x + points[3].x) / 2, ((points[0].y + points[1].y) / 2) + height ));
+        // straightRect.push_back(cv::Point((points[0].x + points[2].x) / 2, ((points[0].y + points[1].y) / 2) + height ));
+        // straightRect.push_back(cv::Point((points[1].x + points[3].x) / 2, ((points[0].y + points[1].y) / 2) + height ));
+        
+        CvPoint p1 = cv::Point(-(width/2), -(height/2));
+        CvPoint p2 = cv::Point((width/2), -(height/2));
+        CvPoint p3 = cv::Point(-(width/2), (height/2));
+        CvPoint p4 = cv::Point((width/2), (height/2));
+        
+        straightRect.push_back(center_of_calibration + p1);
+        straightRect.push_back(center_of_calibration + p2);
+        straightRect.push_back(center_of_calibration + p3);
+        straightRect.push_back(center_of_calibration + p4);
         
         BNU::vector<double> outVect = BNU::vector<double>(8);
         BNU::vector<double> inVect = BNU::vector<double>(8);
@@ -194,7 +256,7 @@ void KinectHelper::DrawCalibrationData(CvArr* img)
     
     for(std::vector<CvPoint>::iterator it = pointsUsedForCalibration.begin(); it != pointsUsedForCalibration.end(); it++)
     {
-        // if(pointsUsedForCalibration.size() >= 4) DrawProjectedPoint(img, *it);
+        if(pointsUsedForCalibration.size() >= 4) DrawProjectedPoint(img, *it);
         cvCircle(img, *it, 5, CV_RGB(0,255,255), 2);
     }
     
@@ -209,8 +271,8 @@ void KinectHelper::DrawProjectedPoint(CvArr* img, CvPoint point)
 {
     CvPoint prj = ProjectPoint(point);
     
-    cvCross(img, point, CV_RGB(128,128,255), 3, 2);
-    cvCross(img, prj, CV_RGB(128,255,128), 3, 2);
+    cvCross(img, point, 3, CV_RGB(128,128,255), 2);
+    cvCross(img, prj, 3, CV_RGB(128,255,128), 2);
     cvLine(img, point, prj, CV_RGB(128,128,0));
     
 }
@@ -248,11 +310,12 @@ CvPoint KinectHelper::ProjectPoint(CvPoint point)
     ret.x = (projectiveTransformationVector[0] * point.x + projectiveTransformationVector[1] * point.y + projectiveTransformationVector[2]) / (projectiveTransformationVector[6] * point.x + projectiveTransformationVector[7] * point.y + 1);
     ret.y = (projectiveTransformationVector[3] * point.x + projectiveTransformationVector[4] * point.y + projectiveTransformationVector[5]) / (projectiveTransformationVector[6] * point.x + projectiveTransformationVector[7] * point.y + 1);
 
+    /*
+    
     double middle_x = 320;
     double middle_y = 240;
     
-    
-    
+   
     CvPoint upper_y = cv::Point(middle_x, (pointsUsedForCalibration[0].y + pointsUsedForCalibration[1].y) / 2);
     CvPoint lower_y = cv::Point(middle_x, (pointsUsedForCalibration[2].y + pointsUsedForCalibration[3].y) / 2);
 
@@ -262,7 +325,7 @@ CvPoint KinectHelper::ProjectPoint(CvPoint point)
     double r_x = abs((right_x.x - left_x.x) / 4);
     double r_y = abs((lower_y.y - upper_y.y) / 4);
     
-    Raster(ret, r_x, r_y);
+    Raster(ret, r_x, r_y); */
     
     return ret;
 }
@@ -281,15 +344,15 @@ CvPoint KinectHelper::GetAbsoluteX(CvPoint point)
     return ret;
 }
 
-CvPoint KinectHelper::GetAbsoluteCoordinates(double distanceValue, double xOnImage)
+CvPoint KinectHelper::GetAbsoluteCoordinates(double yOnImage_in_cm, double xOnImage_in_cm)
 {
     CvPoint absKinect = cv::Point(absolute_x, absolute_y);
 
     CvPoint ToLeftBorder = GetLeftFrameEdgeVector();
-    CvPoint ToFrame = GetOnImageVector(xOnImage);
-    CvPoint ToPos = GetToPosVector(distanceValue);
+    CvPoint ToFrame = GetOnImageVector(xOnImage_in_cm);
+    CvPoint ToPos = GetToPosVector(yOnImage_in_cm);
     
-    CvPoint ret = (absKinect + ToLeftBorder + ToFrame + ToPos) * 0.1;
+    CvPoint ret = (absKinect + ToLeftBorder + ToFrame + ToPos);
     // std::cout << "GetAbsoluteCoordinates: ToFrame: " << ToFrame << std::endl;
     // std::cout << "GetAbsoluteCoordinates: xOnImage: " << xOnImage << std::endl;
     return ret;
@@ -297,7 +360,7 @@ CvPoint KinectHelper::GetAbsoluteCoordinates(double distanceValue, double xOnIma
 
 CvPoint KinectHelper::GetToPosVector(double Distance)
 {
-    return cv::Point(cos(view_angle) * Distance, -sin(view_angle) * Distance);
+    return cv::Point(cos(view_angle) * Distance, sin(view_angle) * Distance);
 }
 
 CvPoint KinectHelper::GetOnImageVector(double XOnImage)
@@ -307,10 +370,10 @@ CvPoint KinectHelper::GetOnImageVector(double XOnImage)
 
 CvPoint KinectHelper::GetLeftFrameEdgeVector()
 {
-    return cv::Point((sin(view_angle)*320), cos(view_angle) * 320);
+    return cv::Point(-sin(view_angle) * In_cm(320, Horizontal), cos(view_angle) * In_cm(320, Horizontal));
 }
 
-void Raster(CvPoint& point, double x, double y)
+void KinectHelper::Raster(CvPoint& point, double x, double y)
 {
     // std::cout << "Raster; Before: " << point;
 

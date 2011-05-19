@@ -10,10 +10,13 @@
 
 #include <opencv/cv.h>
 
-void cvCross(CvArr* img, CvPoint pt, CvScalar color, int size, int thickness = 1);
+void cvCross(CvArr* img, CvPoint pt, int size, CvScalar color, int thickness = 1);
+
 CvPoint operator+(CvPoint a, CvPoint b);
 CvPoint operator-(CvPoint a, CvPoint b);
+CvPoint operator*(CvPoint a, CvPoint b);
 CvPoint operator*(CvPoint a, double scalar);
+
 
 
 

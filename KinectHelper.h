@@ -36,12 +36,21 @@ bool fartherDown(CvPoint a, CvPoint b);
 void Raster(CvPoint& point, double x, double y);
 std::queue<CvPoint> Border(std::vector<CvPoint> points, std::function<bool()> func);
 
+typedef enum {
+    Vertical,
+    Horizontal,
+} Orientation;
+
 class KinectHelper {
 public:
     static const double fov;
     static double view_plane_distance_cm, v_px_per_cm, h_px_per_cm; 
     static double frame_offset;
     static double distance_coefficient;
+    
+    static double scale;
+    
+    static CvRect straight_rect;
     
     static BNU::vector<double> projectiveTransformationVector;
     
@@ -64,6 +73,11 @@ public:
     static CvPoint GetOnImageVector(double XOnImage);
     static CvPoint GetToPosVector(double Distance);
     
+    static double In_px(double cm, Orientation o);
+    static double In_cm(double px, Orientation o);
+    
+    static void Raster(CvPoint& point, double x, double y);
+    
     static void DrawProjectedPoint(CvArr* img, CvPoint point);
     static CvPoint ProjectPoint(CvPoint point);
     static void ProjectImage(CvArr* src, CvArr* dst);
@@ -81,10 +95,6 @@ public:
     static CvPoint VanishingPoint;
     static std::vector<CvPoint> pointsUsedForCalibration;
 };
-
-CvPoint operator+(CvPoint a, CvPoint b);
-CvPoint operator-(CvPoint a, CvPoint b);
-CvPoint operator*(CvPoint a, double scalar);
 
 bool operator>(CvScalar a, double max);
 
