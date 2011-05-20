@@ -26,15 +26,18 @@
 #include <boost/numeric/ublas/io.hpp>
 
 #include "CvShapes.h"
+#include "PlayingField.h"
 
 #define BNU boost::numeric::ublas
 
+/*
 bool fartherRight(CvPoint a, CvPoint b);
 bool fartherLeft(CvPoint a, CvPoint b);
 bool fartherUp(CvPoint a, CvPoint b);
 bool fartherDown(CvPoint a, CvPoint b);
 void Raster(CvPoint& point, double x, double y);
 std::queue<CvPoint> Border(std::vector<CvPoint> points, std::function<bool()> func);
+*/
 
 typedef enum {
     Vertical,
@@ -63,6 +66,7 @@ public:
     static void CalibrateVanishingPoint(); static bool bVPCalibrated;
     static void CalibrateAnglesAndViewport(); static bool bAandVCalibrated;
     static void SetupProjectionVector();
+    static void SetupPlayingField(int sX, int sY);
     
     static void DrawCalibrationData(CvArr* img);
 
@@ -94,14 +98,10 @@ public:
     
     static CvPoint VanishingPoint;
     static std::vector<CvPoint> pointsUsedForCalibration;
+    
 };
 
 bool operator>(CvScalar a, double max);
-
-
-std::ostream& operator<<(std::ostream& s, const cv::Mat& mat);
-std::ostream& operator<<(std::ostream& s, const CvPoint& point);
-std::istream& operator>>(std::istream& s, CvPoint& point);
 
 bool leftOf(const std::pair<int, cvb::CvBlob*>& point, const std::pair<int, cvb::CvBlob*>& of);
 bool rightOf(const std::pair<int, cvb::CvBlob*>& point, const std::pair<int, cvb::CvBlob*>& of);
@@ -109,4 +109,6 @@ bool rightOf(const std::pair<int, cvb::CvBlob*>& point, const std::pair<int, cvb
 bool smallestIndex(const std::pair<int, cvb::CvBlob*>& a, const std::pair<int, cvb::CvBlob*>& b);
 
 #endif	/* KINECTHELPER_H */
+
+
 

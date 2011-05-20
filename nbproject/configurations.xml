@@ -11,7 +11,10 @@
       <itemPath>/home/ros/NetBeansProjects/CvTest/MinMax.h</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/MotorHelper.h</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/PhidgetHelper.h</itemPath>
+      <itemPath>/home/ros/NetBeansProjects/CvTest/PlayingField.h</itemPath>
+      <itemPath>/home/ros/NetBeansProjects/CvTest/TemporalSmoother.h</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/global.h</itemPath>
+      <itemPath>/home/ros/NetBeansProjects/CvTest/settings.h</itemPath>
     </logicalFolder>
     <logicalFolder name="ResourceFiles"
                    displayName="Resource Files"
@@ -25,6 +28,7 @@
       <itemPath>/home/ros/NetBeansProjects/CvTest/KinectHelper.cpp</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/MotorHelper.cpp</itemPath>
       <itemPath>/home/ros/NetBeansProjects/CvTest/PhidgetHelper.cpp</itemPath>
+      <itemPath>/home/ros/NetBeansProjects/CvTest/PlayingField.cpp</itemPath>
       <itemPath>cvtest.cpp</itemPath>
     </logicalFolder>
     <logicalFolder name="TestFiles"
@@ -83,6 +87,7 @@
             <linkerLibLibItem>phidget21</linkerLibLibItem>
             <linkerLibLibItem>usb</linkerLibLibItem>
             <linkerLibLibItem>serial</linkerLibLibItem>
+            <linkerOptionItem>`pkg-config --libs OGRE`</linkerOptionItem>
           </linkerLibItems>
         </linkerTool>
       </compileType>

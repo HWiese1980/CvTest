@@ -31,10 +31,14 @@
 #include "MotorHelper.h"
 #include "Corners.h"
 #include "CvShapes.h"
+#include "TemporalSmoother.h"
 
 #include <cvblob.h>
 #include <opencv/cv.hpp>
 #include <opencv/cxcore.h>
+#include <locale>
+
+#include "settings.h"
 
 pthread_mutex_t mutex_depth = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_rgb = PTHREAD_MUTEX_INITIALIZER;
@@ -64,10 +68,13 @@ IplImage* depth_rgb = 0;
 
 IplImage* clamped_hsv = 0; // hsv mask married to clamped depth data
 
-CvScalar hsv_min = cvScalar(20, 70, 0, 0);
-CvScalar hsv_max = cvScalar(50, 255, 255, 0);
-CvScalar depth_clamp_min = cvScalar(0, 0, 0, 0);
-CvScalar depth_clamp_max = cvScalar(128, 128, 128, 128);
+std::map<cvb::CvLabel, TemporalSmoother<cv::Point, 100> > smoothmap;
+
+CvScalar hsv_min = cvScalar(DFT_L_HUE, DFT_L_SAT, DFT_L_VAL, 0);
+CvScalar hsv_max = cvScalar(DFT_U_HUE, DFT_U_SAT, DFT_U_VAL, 0);
+
+double sharpen_weight = DFT_SHARPENING;
+int area = 300;
 
 // void FloodFill(cv::Mat& matrix, int x, int y, int64_t recursion_level = 0);
 
@@ -169,6 +176,7 @@ void depth_cb(freenect_device *dev, void *depth, uint32_t timestamp)
 
     // mydepth.convertTo(depth8, CV_8UC1, 1.0 / 4.0);
     pthread_mutex_lock(&mutex_depth);
+
     memcpy(depthimg->imageData, mydepth.data, 640 * 480);
 
     // unlock mutex
@@ -178,83 +186,51 @@ void depth_cb(freenect_device *dev, void *depth, uint32_t timestamp)
 // callback for rgbimage, called by libfreenect
 void rgb_cb(freenect_device *dev, void *rgb, uint32_t timestamp)
 {
+    static bool bFirst = true;
     // lock mutex for opencv rgb image
     pthread_mutex_lock(&mutex_rgb);
+    
+    if(bFirst) sleep(2);
+    bFirst = false;
+    
     memcpy(bgrimg->imageData, rgb, FREENECT_RGB_SIZE);
     cvConvertImage(bgrimg, rgbimg, CV_CVTIMG_SWAP_RB);
     // unlock mutex
     pthread_mutex_unlock(&mutex_rgb);
 }
 
-void cv_lower_cb(int value)
-{
-    hsv_min.val[0] = (double) value;
-}
+typedef enum {
+    lowerHue,
+    upperHue,
+    lowerSat,
+    upperSat,
+    lowerVal,
+    upperVal,
+    kinAngle,
+    kinScale,
+    sharpen,
+    kinX,
+    kinY,
+    areafilter,
+} cbType;
 
-void cv_upper_cb(int value)
+template<cbType type> void cv_GUICB(int value)
 {
-    hsv_max.val[0] = (double) value;
-}
-
-void cv_lower_sat_cb(int value)
-{
-    hsv_min.val[1] = (double) value;
-}
-
-void cv_upper_sat_cb(int value)
-{
-    hsv_max.val[1] = (double) value;
-}
-
-void cv_lower_val_cb(int value)
-{
-    hsv_min.val[2] = (double) value;
-}
-
-void cv_upper_val_cb(int value)
-{
-    hsv_max.val[2] = (double) value;
-}
-
-void cv_minWidth_cb(int value)
-{
-    FigureFrame::mmWidth.Min = value;
-}
-
-void cv_maxWidth_cb(int value)
-{
-    FigureFrame::mmWidth.Max = value;
-}
-
-void cv_minHeight_cb(int value)
-{
-    FigureFrame::mmHeight.Min = value;
-}
-
-void cv_maxHeight_cb(int value)
-{
-    FigureFrame::mmHeight.Max = value;
-}
-
-void cv_KinAngle_cb(int value)
-{
-    KinectHelper::view_angle = DEG2RAD(value);
-}
-
-void cv_KinX_cb(int value)
-{
-    KinectHelper::absolute_x = value;
-}
-
-void cv_KinY_cb(int value)
-{
-    KinectHelper::absolute_y = value;
-}
-
-void cv_KinScale_cb(int value)
-{
-    KinectHelper::scale = (value / 100.0);
-    std::cout << "Setting Kinect Scale to " << KinectHelper::scale << std::endl;
+    switch(type)
+    {
+        case lowerHue: hsv_min.val[0] = (double) value; break;
+        case upperHue: hsv_max.val[0] = (double) value; break;
+        case lowerSat: hsv_min.val[1] = (double) value; break;
+        case upperSat: hsv_max.val[1] = (double) value; break;
+        case lowerVal: hsv_min.val[2] = (double) value; break;
+        case upperVal: hsv_max.val[2] = (double) value; break;
+        case kinAngle: KinectHelper::view_angle = DEG2RAD(value); break;
+        case kinScale: KinectHelper::scale = value / 100.0; break;
+        case sharpen: sharpen_weight = value / 1000.0; break;
+        case kinX: KinectHelper::absolute_x = value; smoothmap.clear(); break;
+        case kinY: KinectHelper::absolute_y = value; smoothmap.clear(); break;
+        case areafilter: area = value; break;
+    }
 }
 
 int lower_thresh = hsv_min.val[0], upper_thresh = hsv_max.val[0];
@@ -264,17 +240,8 @@ int lower_val_thresh = hsv_min.val[2], upper_val_thresh = hsv_max.val[2];
 int _kin_angle = 0, _kin_x = 0, _kin_y = 0;
 
 int minWidth, maxWidth, minHeight, maxHeight;
-// int lower_d_thresh = 0, upper_d_thresh = 255;
 
-void ConvertTo3D(CvArr* src, CvArr* dst, const cv::Mat& Q, bool HandleMissingValues = false)
-{
-    cv::Mat matA = cv::Mat((IplImage*)src);
-    cv::Mat matB = cv::Mat((IplImage*)dst);
-    cv::reprojectImageTo3D(matA, matB, Q, HandleMissingValues);
-}
-
-// std::map<int, CvPoint> calibPoints;
-void onCalibrationWindowMouseClick(int evt, int x, int y, int flags, void* param)
+void onCalibrationWindowMouseEvent(int evt, int x, int y, int flags, void* param)
 {
     static int cpt_index = 0;
     if(evt==CV_EVENT_LBUTTONUP)
@@ -295,6 +262,16 @@ void onCalibrationWindowMouseClick(int evt, int x, int y, int flags, void* param
     }
 }
 
+CvFont font;
+
+void onHsvWindowMouseEvent(int evt, int x, int y, int flags, void* param)
+{
+    char inf[255];
+    CvScalar val = cvGet2D(hsvimg, y, x);
+    sprintf(inf, "HUE: %0.2f, SAT: %0.2f, VAL: %0.2f", val.val[0], val.val[1], val.val[2]);
+    std::cout << inf << std::endl;
+}
+
 void ClearBlobAt(IplImage* img, CvPoint Pt)
 {
     CvScalar scal = cvGet2D(img, Pt.y, Pt.x);
@@ -306,9 +283,7 @@ void DrawCheckerBord(CvArr* img)
     double field_width_in_px = KinectHelper::In_px(35, Horizontal);
     double field_height_in_px = KinectHelper::In_px(35, Vertical);
 
-    std::cout << "Field - Height in PX: " <<field_height_in_px << "; Width in PX: " << field_width_in_px << std::endl;
-    
-    int colidx = 1;
+    int colidx = 0;
     cv::Scalar col[2] = { CV_RGB(255, 0, 0), CV_RGB(0, 0, 255) };
     
     for(int j=0; j < 6; j++)
@@ -325,7 +300,6 @@ void DrawCheckerBord(CvArr* img)
 bool bSkipClearBorder = false;
 void ClearBorder(IplImage* img)
 {
-    if(bSkipClearBorder) return;
     // upper and lower border
     for(int idx = 0; idx < img->width; idx++)
     {
@@ -347,44 +321,52 @@ void ClearBorder(IplImage* img)
 
 volatile bool bThreadRunning = false;
 
+pthread_mutex_t filter_mutex;
+
 /*
  * thread for displaying the opencv content
  */
 void *cv_threadfunc(void *ptr)
 {
+    pthread_mutex_lock(&mutex_rgb);
+    pthread_mutex_lock(&mutex_depth);
+    
+    PlayingField field = PlayingField(11, 11);
+
+    pthread_mutex_unlock(&mutex_depth);
+    pthread_mutex_unlock(&mutex_rgb);
+
+    std::cout << "Playing Field initialized" << std::endl;
+    std::cout << field << std::endl;
+    
     bThreadRunning = true;
 
     PhidgetHelper::Initialize();
     MotorHelper::Initialize();
 
-    CvFont font;
     cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, 0.3, 0.3, 0, 1, CV_AA);
     
     using namespace cvb;
-    // cvNamedWindow( FREENECTOPENCV_WINDOW_D, CV_WINDOW_AUTOSIZE );
-    // cvNamedWindow( FREENECTOPENCV_WINDOW_N, CV_WINDOW_AUTOSIZE );
+
     cvNamedWindow("GUI", CV_WINDOW_AUTOSIZE);
 
-    cvCreateTrackbar("Lower Threshold", "GUI", &lower_thresh, 255, cv_lower_cb);
-    cvCreateTrackbar("Upper Threshold", "GUI", &upper_thresh, 255, cv_upper_cb);
-    cvCreateTrackbar("Lower Threshold Sat", "GUI", &lower_sat_thresh, 255, cv_lower_sat_cb);
-    cvCreateTrackbar("Upper Threshold Sat", "GUI", &upper_sat_thresh, 255, cv_upper_sat_cb);
-    cvCreateTrackbar("Lower Threshold Val", "GUI", &lower_val_thresh, 255, cv_lower_val_cb);
-    cvCreateTrackbar("Upper Threshold Val", "GUI", &upper_val_thresh, 255, cv_upper_val_cb);
-
-    cvCreateTrackbar("Erode", "GUI", &FigureFrame::mmWidth.Min, 255, cv_minWidth_cb);
-    cvCreateTrackbar("Dilate", "GUI", &FigureFrame::mmWidth.Max, 255, cv_maxWidth_cb);
-
-    cvCreateTrackbar("Min Height", "GUI", &FigureFrame::mmHeight.Min, 255, cv_minHeight_cb);
-    cvCreateTrackbar("Max Height", "GUI", &FigureFrame::mmHeight.Max, 255, cv_maxHeight_cb);
-
-    cvCreateTrackbar("Kinect Angle", "GUI", &_kin_angle, 360, cv_KinAngle_cb);
-    cvCreateTrackbar("Kinect X", "GUI", &_kin_x, 10000, cv_KinX_cb);
-    cvCreateTrackbar("Kinect Y", "GUI", &_kin_y, 10000, cv_KinY_cb);
+    cvCreateTrackbar("Lower Threshold", "GUI", &lower_thresh, 180, cv_GUICB<lowerHue>);
+    cvCreateTrackbar("Upper Threshold", "GUI", &upper_thresh, 180, cv_GUICB<upperHue>);
+    cvCreateTrackbar("Lower Threshold Sat", "GUI", &lower_sat_thresh, 256, cv_GUICB<lowerSat>);
+    cvCreateTrackbar("Upper Threshold Sat", "GUI", &upper_sat_thresh, 256, cv_GUICB<upperSat>);
+    cvCreateTrackbar("Lower Threshold Val", "GUI", &lower_val_thresh, 256, cv_GUICB<lowerVal>);
+    cvCreateTrackbar("Upper Threshold Val", "GUI", &upper_val_thresh, 256, cv_GUICB<upperVal>);
+    cvCreateTrackbar("Kinect Angle", "GUI", &_kin_angle, 360, cv_GUICB<kinAngle>);
+    cvCreateTrackbar("Kinect X", "GUI", &_kin_x, 10000, cv_GUICB<kinX>);
+    cvCreateTrackbar("Kinect Y", "GUI", &_kin_y, 10000, cv_GUICB<kinY>);
     
     int scale = (KinectHelper::scale * 100);
-    cvCreateTrackbar("Kinect Scale", "GUI", &scale, 100, cv_KinScale_cb);
+    cvCreateTrackbar("Kinect Scale", "GUI", &scale, 100, cv_GUICB<kinScale>);
 
+    int shw = sharpen_weight * 1000;
+    cvCreateTrackbar("Unsharpen Mask Weight", "GUI", &shw, 10000, cv_GUICB<sharpen>);
+    
+    cvCreateTrackbar("Min Area", "GUI", &area, 10000, cv_GUICB<areafilter>);
     
     depthimg = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_16U, FREENECTOPENCV_DEPTH_DEPTH);
     
@@ -402,58 +384,50 @@ void *cv_threadfunc(void *ptr)
     clamped_hsv = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
 
     KinectHelper::depthData = depthimg;
-    // use image polling
+
     printf("Running Thread...\n");
-    // cvNamedWindow("blob-msk", 1);
     cvNamedWindow("hsv-msk", 1);
-    // cvNamedWindow( "depth-img", 1); 
     cvNamedWindow( "combined-depth-img", 1);
-    cvSetMouseCallback("combined-depth-img", onCalibrationWindowMouseClick);
+    cvSetMouseCallback("combined-depth-img", onCalibrationWindowMouseEvent);
     
-    // cvNamedWindow("labeled-blobs", 1);
+    cvNamedWindow("hsvimg", 1);
+    cvSetMouseCallback("hsvimg", onHsvWindowMouseEvent);
     cvNamedWindow("figures", 1);
-    // cvNamedWindow("projection", 1);
-    // cvNamedWindow("undistorted", 1);
     
     CvTracks tracks;
     CvBlobs blobs;
 
     int loopCounter = 0; 
-    // std::vector<cv::Point2f> corners;
-    // std::vector<cv::Point2f> corners;
 
-    std::map<CornerPosition, CvPoint> calibration_corners;
     bool run = true;
     while (run)
     {
+        field.Clear();
         loopCounter++;
-        //lock mutex for rgb image
-        //pthread_mutex_lock(&mutex_rgb);
-        // show image to window
-        cvCvtColor(rgbimg, hsvimg, CV_BGR2HSV);
-        // cvNamedWindow( "hsv-img", 1); cvShowImage( "hsv-img", hsvimg);
-        // cvShowImage( "depth-img", depthimg);
 
+        pthread_mutex_lock(&filter_mutex);
+        
+        IplImage* sharp_temp = cvCreateImage(cvGetSize(rgbimg), IPL_DEPTH_8U, 3);
+        cv::Mat sharp_temp_mat = cv::Mat(sharp_temp);
+        cv::Mat rgbmat = cv::Mat(rgbimg);
+        cv::GaussianBlur(rgbmat, sharp_temp_mat, cv::Size(0,0), 8);
+        cv::addWeighted(rgbmat, sharpen_weight, sharp_temp_mat, -0.5, 0, sharp_temp_mat);
+        
+        pthread_mutex_unlock(&filter_mutex);
+        
+        cvCvtColor(sharp_temp, hsvimg, CV_BGR2HSV);
+        
         cvInRangeS(hsvimg, hsv_min, hsv_max, hsvmask);
-        cvInRangeS(depthimg, depth_clamp_min, depth_clamp_max, depthmask);
         cvInRangeS(hsvimg, hsv_min, hsv_max, checker_mask);
 
-        cvErode(hsvmask, hsvmask, NULL, 4);
-        cvDilate(hsvmask, hsvmask, NULL, 1);
+        cvErode(hsvmask, hsvmask, NULL, 3);
+
         ClearBorder(hsvmask);
+        cvShowImage("sharp", sharp_temp);
+        cvShowImage("hsvimg", hsvimg);
         cvShowImage("hsv-msk", hsvmask); // hsvmask->origin = 1;
 
-        // cvShowImage(FREENECTOPENCV_WINDOW_N, rgbimg);
-
-        // cvCopy(depthmask, clamped_hsv, hsvmask);
-
-        // cvNamedWindow( "married", 1); cvShowImage( "married", clamped_hsv);
-
-        // cvDilate(hsvmask, hsvmask, NULL, 1);
-        
         cv::Mat depth_mat = cv::Mat(hsvmask);
-        // MarkBlobs(depth_mat);
-        // DrawFrames();
 
         IplImage mat_test = (IplImage) depth_mat;
         IplImage* rectmask = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
@@ -471,18 +445,14 @@ void *cv_threadfunc(void *ptr)
         IplImage* projected_image = cvCreateImage(cvGetSize(hsvmask), IPL_DEPTH_8U, 3);
         
         IplImage* labeledImage = cvCreateImage(cvGetSize(combined_result), IPL_DEPTH_LABEL, 1);
-        // IplImage* rgb_equalized = cvCreateImage(cvGetSize(rgbimg), IPL_DEPTH_8U, FREENECTOPENCV_RGB_DEPTH);
         
         IplImage* figurePositionsImage = cvCreateImage(cvSize(FREENECTOPENCV_RGB_WIDTH, FREENECTOPENCV_RGB_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_RGB_DEPTH);
-        int result = cvLabel(hsvmask, labeledImage, blobs);
-        
-        // cvEqualizeHist(rgbimg, rgb_equalized);
 
-        cvFilterByArea(blobs, 500, 1000000);
-
+        cvLabel(hsvmask, labeledImage, blobs);
+        cvFilterByArea(blobs, area, 1000000);
         
         if(KinectHelper::pointsUsedForCalibration.size() == 4) DrawCheckerBord(figurePositionsImage);
-
+        
         int blobCnt = 0;
         for(CvBlobs::iterator it = blobs.begin(); it != blobs.end(); it++)
         {
@@ -491,14 +461,6 @@ void *cv_threadfunc(void *ptr)
             try
             {
                 double cent_x = blb.centroid.x, cent_y = blb.centroid.y;
-                
-                // cv::Scalar dist = cvGet2D(depthimg, cent_y, cent_x); // Row/Col Reihenfolge
-                // if(*dist.val > 200) continue;
-
-                // Formel: DIST_CM = TAN(DIST_K / MAX_DIST + 0.5) * 33.825 + 5.7
-
-                // double dist_over_ground = KinectHelper::GetDistanceOverGround(dist[0]);
-                // if(dist_over_ground > 250 || dist_over_ground < 20) continue; // Objekt zu weit weg oder zu dicht dran
                 
                 // Infofenster
                 cvRectangle(combined_labelled_blob_data_bg, cv::Point(cent_x + 5, cent_y + 5), cv::Point(cent_x + 130, cent_y + 60), CV_RGB(5,5, 5), 2);
@@ -523,42 +485,37 @@ void *cv_threadfunc(void *ptr)
                     sprintf(coord_text, "Absol. X: x:%i:y:%i", absXPt.x, absXPt.y);
                     cvPutText(combined_labelled_blob_data, coord_text, cv::Point(cent_x + 10, cent_y + 45), &font, cv::Scalar(0, 255, 255, 0) );
 
-                    /*
-                    CvPoint kin_pt = cv::Point(320, 240);
-                    CvPoint kinEdge_pt = kin_pt + (KinectHelper::GetLeftFrameEdgeVector() * 0.1);
-                    CvPoint kinOnFr_pt = kinEdge_pt + (KinectHelper::GetOnImageVector(base_pt.x) * 0.1);
-                    CvPoint kinPos__pt = kinOnFr_pt + (KinectHelper::GetToPosVector(dist[0] * KinectHelper::distance_coefficient) * 0.1);
+                    CvPoint orig_pt = CvPoint(pt);
                     
+                    char blob_no[255];
+                    sprintf(blob_no, "<%i>", blobCnt);
+                    smoothmap[blobCnt].push_back(orig_pt);
+                    CvPoint smoothed = smoothmap[blobCnt].getValue();
+
+                    KinectHelper::Raster(pt, KinectHelper::In_px(17.5, Horizontal), KinectHelper::In_px(17.5, Vertical));
                     
-                    cvCircle(figurePositionsImage, kin_pt, 4, CV_RGB(255, 128, 0), CV_FILLED);
-                    cvCircle(figurePositionsImage, kin_pt, 4, CV_RGB(255, 192, 0), 2);
+                    cvCircle(figurePositionsImage, FlipHorizontal(pt, 480) * KinectHelper::scale, KinectHelper::In_px(10 * KinectHelper::scale, Horizontal), CV_RGB(255, 255, 0), 3);
+                    cvCross(figurePositionsImage, FlipHorizontal(smoothed, 480) * KinectHelper::scale, KinectHelper::In_px(11 * KinectHelper::scale, Horizontal), CV_RGB(255, 255, 0));
+                    cvCross(figurePositionsImage, FlipHorizontal(pt, 480) * KinectHelper::scale, KinectHelper::In_px(11 * KinectHelper::scale, Horizontal), CV_RGB(255, 255, 0));
+                    cvLine(figurePositionsImage, FlipHorizontal(smoothed, 480) * KinectHelper::scale, pt * KinectHelper::scale, CV_RGB(128, 128, 0), 1);
+                    cvPutText(figurePositionsImage, blob_no, (FlipHorizontal(pt, 480) * KinectHelper::scale) + cv::Point(5, 5), &font, CV_RGB(0, 0, 0));
                     
-                    cvLine(figurePositionsImage, kin_pt, kinEdge_pt, CV_RGB(255, 128, 0));
-                    cvCircle(figurePositionsImage, kinOnFr_pt, 3, CV_RGB(128, 255, 0), CV_FILLED);
-                    cvCircle(figurePositionsImage, kinPos__pt, 3, CV_RGB(255, 255, 0), CV_FILLED);
-                    */
-                    
-                    KinectHelper::Raster(pt, KinectHelper::In_px(17.5 /* KinectHelper::scale*/, Horizontal), KinectHelper::In_px(17.5 /* KinectHelper::scale*/, Vertical));
-                    
-                    cvCircle(figurePositionsImage, pt * KinectHelper::scale, KinectHelper::In_px(10 * KinectHelper::scale, Horizontal), CV_RGB(255, 255, 0), 3);
-                    cvCross(figurePositionsImage, pt * KinectHelper::scale, KinectHelper::In_px(11 * KinectHelper::scale, Horizontal), CV_RGB(255, 255, 0), 2);
+                    CvPoint field_position = pt / cv::Point(KinectHelper::In_px(17.5, Horizontal), KinectHelper::In_px(17.5, Vertical));
+                    // std::cout << blob_no << " on Field: " << field_position << std::endl;
+                    std::cout << "\033[2J" << std::flush;
+                    std::cout << "\033[0;0H" << std::flush;
+
+                    field.SetAt(field_position.x, field_position.y, true);
+                    std::cout << "-----------------------------------------" << std::endl;
+                    std::cout << field << std::endl;
                     
                 }
 
 
-//                char distance_text[255];
-//                sprintf(distance_text, "%i: %0.2f cm", blobCnt, dist_over_ground);
-//                cvPutText(combined_labelled_blob_data, distance_text, cv::Point(cent_x + 10, cent_y + 15), &font, cv::Scalar(0, 128, 255, 0) );
-                
                 cvCross(combined_labelled_blob_detection, blob_pt, 5, CV_RGB(255, 0, 0));
-                // cvRectangle(combined_labelled_blob_detection, cv::Point(blb.minx, blb.miny), cv::Point(blb.maxx, blb.maxy), CV_RGB(0, 255, 0), 2);
                 
                 if(KinectHelper::pointsUsedForCalibration.size() >= 4)
                     KinectHelper::DrawProjectedPoint(combined_labelled_blob_detection, blob_pt);
-
-                // figurePositions.push_back(pt);
-                
-                // cv::Mat figImgMat = cv::Mat(figurePositionsImage);
 
             }
             catch(...)
@@ -566,14 +523,40 @@ void *cv_threadfunc(void *ptr)
                 std::cerr << "Error fetching distance..." << std::endl;
             }
             
-//            CvContourPolygon *poly = cvConvertChainCodesToPolygon(&(*it).second->contour);
-//            CvContourPolygon *sPoly = cvSimplifyPolygon(poly, 5);
-//            CvContourPolygon *cPoly = cvPolygonContourConvexHull(sPoly);
+            CvContourPolygon *poly = cvConvertChainCodesToPolygon(&(*it).second->contour);
+            CvContourPolygon *sPoly = cvSimplifyPolygon(poly, 5);
+            CvContourPolygon *cPoly = cvPolygonContourConvexHull(sPoly);
             
-            // cvRenderContourChainCode(&(*it).second->contour, combined_labelled_blob);
-            // cvRenderContourPolygon(sPoly, combined_labelled_blob, CV_RGB(0, 255, 255));
-            // cvRenderContourPolygon(cPoly, combined_labelled_blob, CV_RGB(255, 255, 0));
+//            cvRenderContourChainCode(&(*it).second->contour, combined_labelled_blob);
+//            cvRenderContourPolygon(sPoly, combined_labelled_blob_detection, CV_RGB(0, 255, 255));
+//            cvRenderContourPolygon(cPoly, combined_labelled_blob_detection, CV_RGB(255, 255, 0));
             
+            if(poly->size() >= 6)
+            {
+                CvPoint2D32f points[poly->size()];
+                int p_idx = 0;
+                for(CvContourPolygon::iterator seq_pnt = poly->begin(); seq_pnt != poly->end(); seq_pnt++ )
+                {
+                    points[p_idx++] = cvPoint2D32f(seq_pnt->x, seq_pnt->y);
+                }
+                CvBox2D box;
+                cvFitEllipse(points, p_idx, &box);
+
+//                cvCross(combined_labelled_blob_detection, cv::Point(box.center.x, box.center.y), 10, CV_RGB(0,255,255));
+//                CvPoint a = cv::Point(box.center.x - cos(box.angle) * box.size.width, box.center.y + sin(box.angle) * 20);
+//                CvPoint b = cv::Point(box.center.x + cos(box.angle) * box.size.width, box.center.y - sin(box.angle) * 20);
+//                CvPoint aA = a + cv::Point(box.size.height/2 * sin(DEG2RAD(180) - box.angle), -box.size.width/2 * cos(DEG2RAD(180) - box.angle));
+//                CvPoint aB = a - cv::Point(box.size.height/2 * sin(DEG2RAD(180) - box.angle), -box.size.width/2 * cos(DEG2RAD(180) - box.angle));
+//                CvPoint bA = b + cv::Point(box.size.height/2 * sin(DEG2RAD(180) - box.angle), -box.size.width/2 * cos(DEG2RAD(180) - box.angle));
+//                CvPoint bB = b - cv::Point(box.size.height/2 * sin(DEG2RAD(180) - box.angle), -box.size.width/2 * cos(DEG2RAD(180) - box.angle));
+//                cvLine(combined_labelled_blob_detection, a, b, CV_RGB(0, 255, 255));
+//                cvLine(combined_labelled_blob_detection, aA, aB, CV_RGB(0, 255, 255));
+//                cvLine(combined_labelled_blob_detection, bA, bB, CV_RGB(0, 255, 255));
+//                cvLine(combined_labelled_blob_detection, aA, bA, CV_RGB(0, 255, 255));
+//                cvLine(combined_labelled_blob_detection, aB, bB, CV_RGB(0, 255, 255));
+                bool ok = EllipseOK(box);
+                cvEllipse(combined_labelled_blob_detection, cv::Point(box.center.x, box.center.y), cv::Size(box.size.width/2, box.size.height/2), box.angle, 0, 360, (ok) ? CV_RGB(0, 128, 0) : CV_RGB(128, 0, 0));
+            }
         }
         
         cvLine(combined_labelled_blob_detection, cv::Point(320, 10), cv::Point(320, 470), cv::Scalar(255, 255, 255, 0));
@@ -590,8 +573,8 @@ void *cv_threadfunc(void *ptr)
         
         std::vector< std::pair< CvArr*, double > > imageStack;
         
-        imageStack.push_back({ rgbimg, 1.0 });
-        imageStack.push_back({ combined_labelled_blob_data_bg, 0.2 });
+        imageStack.push_back({ sharp_temp, 1.0 });
+        // imageStack.push_back({ combined_labelled_blob_data_bg, 0.2 });
         imageStack.push_back({ combined_labelled_blob_data, 1.0 });
         imageStack.push_back({ combined_labelled_blob_detection, 1.0 });
         imageStack.push_back({ combined_labelled_blob_calibration, 1.0 });
@@ -609,6 +592,7 @@ void *cv_threadfunc(void *ptr)
         cvShowImage("combined-depth-img", combined_labelled_blob); // hsvmask->origin = 1;
         // cvShowImage("undistorted", checker_mask);
         cvShowImage("figures", figurePositionsImage);
+        cvReleaseImage(&sharp_temp);
         cvReleaseImage(&figurePositionsImage);
         cvReleaseImage(&combined_result);
         cvReleaseImage(&labeledImage);
@@ -702,9 +686,6 @@ int main(int argc, char** argv)
     
     KinectHelper::dev = f_dev;
 
-    freenect_set_depth_callback(f_dev, depth_cb);
-    freenect_set_video_callback(f_dev, rgb_cb);
-    freenect_set_video_format(f_dev, FREENECT_VIDEO_RGB);
 
     res = pthread_create(&cv_thread, NULL, cv_threadfunc, (void*) depthimg);
 
@@ -713,7 +694,13 @@ int main(int argc, char** argv)
         printf("Creating PThread failed\n");
         return 3;
     }
+    
+    sleep(1);
 
+    freenect_set_depth_callback(f_dev, depth_cb);
+    freenect_set_video_callback(f_dev, rgb_cb);
+    freenect_set_video_format(f_dev, FREENECT_VIDEO_RGB);
+    
     freenect_start_depth(f_dev);
     freenect_start_video(f_dev);
 

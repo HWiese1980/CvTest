@@ -39,7 +39,8 @@ OBJECTFILES= \
 	${OBJECTDIR}/_ext/2139650202/MotorHelper.o \
 	${OBJECTDIR}/_ext/2139650202/CvShapes.o \
 	${OBJECTDIR}/cvtest.o \
-	${OBJECTDIR}/_ext/2139650202/KinectHelper.o
+	${OBJECTDIR}/_ext/2139650202/KinectHelper.o \
+	${OBJECTDIR}/_ext/2139650202/PlayingField.o
 
 
 # C Compiler Flags
@@ -95,6 +96,11 @@ ${OBJECTDIR}/_ext/2139650202/KinectHelper.o: /home/ros/NetBeansProjects/CvTest/K
 	${MKDIR} -p ${OBJECTDIR}/_ext/2139650202
 	${RM} $@.d
 	$(COMPILE.cc) -O2 -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/2139650202/KinectHelper.o /home/ros/NetBeansProjects/CvTest/KinectHelper.cpp
+
+${OBJECTDIR}/_ext/2139650202/PlayingField.o: /home/ros/NetBeansProjects/CvTest/PlayingField.cpp 
+	${MKDIR} -p ${OBJECTDIR}/_ext/2139650202
+	${RM} $@.d
+	$(COMPILE.cc) -O2 -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/2139650202/PlayingField.o /home/ros/NetBeansProjects/CvTest/PlayingField.cpp
 
 # Subprojects
 .build-subprojects:

@@ -173,6 +173,8 @@ double KinectHelper::In_px(double cm, Orientation o)
     }
 }
 
+
+
 void KinectHelper::SetupProjectionVector()
 {
     std::vector<CvPoint> straightRect;
@@ -185,16 +187,6 @@ void KinectHelper::SetupProjectionVector()
         double height = In_px(70, Vertical);
         double width = In_px(70, Horizontal);
         CvPoint center_of_calibration = cv::Point( (points[0].x + points[1].x + points[2].x + points[3].x) / 4, (points[0].y + points[1].y + points[2].y + points[3].y) / 4);
-        
-        // straightRect.push_back(cv::Point((points[0].x + points[2].x) / 2, (points[0].y + points[1].y) / 2));
-        // straightRect.push_back(cv::Point((points[1].x + points[3].x) / 2, (points[0].y + points[1].y) / 2));
-
-
-        // double width = straightRect[1].x - straightRect[0].x;
-        // double height = (width / 640.0) * 480.0;
-        
-        // straightRect.push_back(cv::Point((points[0].x + points[2].x) / 2, ((points[0].y + points[1].y) / 2) + height ));
-        // straightRect.push_back(cv::Point((points[1].x + points[3].x) / 2, ((points[0].y + points[1].y) / 2) + height ));
         
         CvPoint p1 = cv::Point(-(width/2), -(height/2));
         CvPoint p2 = cv::Point((width/2), -(height/2));
@@ -353,14 +345,13 @@ CvPoint KinectHelper::GetAbsoluteCoordinates(double yOnImage_in_cm, double xOnIm
     CvPoint ToPos = GetToPosVector(yOnImage_in_cm);
     
     CvPoint ret = (absKinect + ToLeftBorder + ToFrame + ToPos);
-    // std::cout << "GetAbsoluteCoordinates: ToFrame: " << ToFrame << std::endl;
-    // std::cout << "GetAbsoluteCoordinates: xOnImage: " << xOnImage << std::endl;
+    
     return ret;
 }
 
 CvPoint KinectHelper::GetToPosVector(double Distance)
 {
-    return cv::Point(cos(view_angle) * Distance, sin(view_angle) * Distance);
+    return cv::Point(cos(view_angle) * Distance, -sin(view_angle) * Distance);
 }
 
 CvPoint KinectHelper::GetOnImageVector(double XOnImage)
@@ -370,17 +361,17 @@ CvPoint KinectHelper::GetOnImageVector(double XOnImage)
 
 CvPoint KinectHelper::GetLeftFrameEdgeVector()
 {
-    return cv::Point(-sin(view_angle) * In_cm(320, Horizontal), cos(view_angle) * In_cm(320, Horizontal));
+    return cv::Point(-sin(view_angle) * In_cm(320, Horizontal), -cos(view_angle) * In_cm(320, Horizontal));
 }
 
-void KinectHelper::Raster(CvPoint& point, double x, double y)
+void KinectHelper::Raster(CvPoint& point, double GridX, double GridY)
 {
     // std::cout << "Raster; Before: " << point;
 
-    double _x = (point.x / x);
-    double _y = (point.y / y);
-    point.x = (int)_x * (int)x;
-    point.y = (int)_y * (int)y;
+    double _x = (point.x / GridX);
+    double _y = (point.y / GridY);
+    point.x = round(_x) * GridX;
+    point.y = round(_y) * GridY;
     
     // std::cout << "; After: " << point << std::endl;
 }
@@ -397,38 +388,6 @@ bool operator>(CvScalar a, double max)
 }
 
 
-std::ostream& operator<<(std::ostream& s, const cv::Mat& mat)
-{
-    s << "[Channels: " << mat.channels() << "][Size: W:" << mat.size().width << ";H: " << mat.size().height << "][Rows: " << mat.rows << "][Cols: " << mat.cols << "]";
-    return s;
-}
-
-std::ostream& operator<<(std::ostream& s, const CvPoint& point)
-{
-    s << "[" << point.x << ":" << point.y << "]"; 
-    return s;
-}
-
-std::istream& operator>>(std::istream& s, CvPoint& point)
-{
-    string data;
-    s >> data;
-    
-    boost::regex rgx("\\[(.*?):(.*?)\\]");
-    boost::match_results<std::string::const_iterator> what;
-    if(boost::regex_match(data, what, rgx, boost::match_default | boost::match_partial) != 0)
-    {
-        std::cout << "OK" << std::endl;
-    }
-    std::cout << "What: " << what[1] << " - " << what[2] << std::endl;
-    string x = what[1].str();
-    string y = what[2].str();
-    point.x = atoi(x.c_str());
-    point.y = atoi(y.c_str());
-    
-    return s;
-}
-
 bool leftOf(const std::pair<int, cvb::CvBlob*>& point, const std::pair<int, cvb::CvBlob*>& of)
 {
     return point.second->centroid.x < of.second->centroid.x;
@@ -444,10 +403,3 @@ bool smallestIndex(const std::pair<int, cvb::CvBlob*>& a, const std::pair<int, c
     return a.first < b.first;
 }
 
-/*
-CvPoint SubPoints(const CvPoint& a, const CvPoint& b)
-{
-    return cv::Point(a.x - b.x, a.y - b.y);
-}
- * 
- * **/
