@@ -81,14 +81,6 @@ int area = 300;
 int currentBlobMaxX = -1, currentBlobMaxY = -1, currentBlobMinX = -1, currentBlobMinY = -1;
 std::vector<FigureFrame> frames;
 
-/*
-void Merge(CvArr* a, CvArr* b, CvArr* dst, CvArr* mask)
-{
-    cvCopy(a, dst);
-    cvCopy(b, dst, mask);
-}
-/**/
-
 void StackTransparent(std::vector< std::pair<CvArr*, double> > images, CvArr* c)
 {
     
